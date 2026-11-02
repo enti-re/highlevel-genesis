@@ -167,6 +167,16 @@ sequenceDiagram
 
 ## 5. LLM pipeline
 
+**Shape: a single-call workflow, not an agent.** One streaming call writes the app; at most two bounded repair calls follow. Files are small and tightly coupled and the user is waiting, so planner/worker agents or retrieval would add cost and failure modes without adding context the model lacks (scaling path in §15).
+
+```
+guard (auth · rate limit · lock) ─▶ context (cached system prompt + history + files + sanitized CRM summary)
+  ─▶ ONE streaming call ─▶ live tag parser ─▶ SSE
+  ─▶ apply edits (atomic per file) ── miss? ─▶ repair call 1: "send the full file"
+  ─▶ JS syntax check (vm.Script) ── error? ─▶ repair call 2: "send the fix" (kept only if it parses)
+  ─▶ validate ─▶ confidence score ─▶ one atomic save
+```
+
 **Output contract.** The model writes plain text plus `<file path="…">…</file>` and `<delete path="…"/>` blocks. I chose this over JSON or tool calls because:
 - tags stream naturally into the editor;
 - the parser is incremental and tolerant of tags split across tokens;
@@ -193,8 +203,14 @@ model ─▶ <edit app.js> search/replace × n ─▶ apply in order ─┬─ a
 | System prompt: rules, starter-kit API, shadcn recipes, `hl` contract | static | top-level `system`, **prompt-cached** |
 | Chat history | last 6 messages | alternating turns |
 | Project files | 160k chars, `index.html`/`app.js` first; overflow listed by name + user warned | final user turn |
-| External context | ≤ 10 calendars, contact count, ≤ 12 tags, timezone. **No contact PII** | final user turn |
+| External context | ≤ 10 calendars, contact count, ≤ 12 tags, timezone. **No contact PII**; every value passes `crmLabel` (one line, no markup, ≤ 60 chars, quoted) and the prompt marks it as data, not instructions | final user turn |
 | Request | ≤ 4,000 chars | final user turn |
+
+**Caching and versioning.** The system prompt is cached; a second breakpoint at the end of the conversation lets repair calls read the whole context from cache (follow-ups miss because the files changed). `promptVersion` (hash of the system prompt) is stored on every generation and in eval reports.
+
+**Syntax check and repair.** Evals showed the main way a generated app fails is a blank preview from a JS syntax error (typically a backtick inside the Vue template string). Generated `.js` files are parsed with `vm.Script` (compiled, never run); on an error, one repair call asks for the corrected file, kept only if it parses. A prompt rule prevents the common cause.
+
+**Confidence score** (`confidence.ts`): 0–100 from mechanical checks after the save is prepared (syntax, unknown `hl` operations, blocked browser APIs, missing local files, failed or repaired edits, warnings). Shown in the chat when not high; calibrated by the eval suite (§14).
 
 **The `hl` contract.** The model never sees raw HighLevel endpoints. It codes against 11 normalized operations (`spec.ts`), which keeps the context small, prevents invented URLs, and absorbs API quirks server-side.
 
@@ -207,6 +223,7 @@ model ─▶ <edit app.js> search/replace × n ─▶ apply in order ─┬─ a
 **Model settings.**
 - Claude Opus 5.5 at `effort: medium`, adaptive thinking, `max_tokens` 32k, server-side refusal fallback. If a fallback re-runs the request, a `reset` event clears the partial output.
 - The model is configurable (`LLM_MODEL`). Sonnet 5.5 roughly halves cost.
+- `LLM_PROVIDER=gemini` is an explicit opt-in (key in Secret Manager) for testing without Claude credits; Claude is the default.
 
 ---
 
@@ -367,7 +384,7 @@ Verified in the browser: an injected inline script, a script from an unknown dom
 
 | Layer | What | Count |
 |---|---|---|
-| Unit: backend | Stream parser at every chunk size (1–1000 chars) incl. `<edit>` tags, search/replace apply (exact, indentation drift, `$` literals, ambiguity, all-or-nothing), file validation and repairs, HighLevel operation param validation + normalization + fallbacks, HighLevel retry (jittered backoff, Retry-After, reads only, concurrency cap), confidence score, JS syntax check, external-context summary (incl. no-PII check) | 73 |
+| Unit: backend | Stream parser at every chunk size (1–1000 chars) incl. `<edit>` tags, search/replace apply (exact, indentation drift, `$` literals, ambiguity, all-or-nothing), file validation and repairs, HighLevel operation param validation + normalization + fallbacks, HighLevel retry (jittered backoff, Retry-After, reads only, concurrency cap), confidence score, JS syntax check, edit resolution + status derivation, CRM-value sanitizing, external-context summary (incl. no-PII check) | 84 |
 | Unit: frontend | Preview builder (inlining, ordering, kit injection, duplicate-Vue stripping, `</script>` escaping, missing files), SSE event parser | 11 |
 | End-to-end (emulators, mock LLM + mock HighLevel) | Security rules, OAuth, proxy, SSE protocol, partial save, lock (409), edits blocked mid-generation, cancel, client disconnect still saves, restore, soft delete, manual-edit snapshot, edit applied in place, failed edit repaired by one full-file call, unrepairable edit → `EDIT_FAILED`, session cookie (httpOnly/Secure/Strict, ID token alone rejected, forged cookie rejected, cross-site Origin rejected), OAuth callback finishes only in the signed-in tab (state from user A rejected for user B, single use) | 53 checks |
 | **Evals** (`evals/`, real model, mock HighLevel) | 15 cases: 9 new apps, 3 refinements (edits), 3 negative (HighLevel down, prompt injection asking for `fetch`/`localStorage` exfiltration, unsupported delete). Each is graded by generation status, static checks, and a **headless-Chrome render of the real preview build** (no runtime errors, `hl` calls succeed, content rendered) into a 0–100 health score. Reports TTFT/duration p50/p95, tokens, $/case, and a **calibration table** (server confidence bucket vs. how often the app really works). See `evals/README.md` and `evals/results/latest.md`. | 15 cases |
