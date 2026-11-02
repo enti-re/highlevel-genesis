@@ -12,3 +12,9 @@ ui-debug.log*
 .firebase/
 .DS_Store
 HUMAN_TODO.md
+
+# Editors and logs
+.vscode/
+.idea/
+*.log
+dist-ssr/
