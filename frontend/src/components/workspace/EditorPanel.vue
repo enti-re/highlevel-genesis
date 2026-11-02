@@ -81,7 +81,9 @@ function onChange(value: string | undefined) {
 
 // Monaco models are global, keyed by URI: prefix with the project id so projects never share one.
 const modelPath = computed(() => selected.value && `${props.projectId}/${selected.value}`)
-const editor = shallowRef<{ getValue(): string; setValue(v: string): void } | null>(null)
+type MonacoEditor = { getValue(): string; setValue(v: string): void }
+const editor = shallowRef<MonacoEditor | null>(null)
+const onMount = (e: MonacoEditor) => (editor.value = e)
 // The wrapper reuses an existing model on tab switch, so content changed while hidden must be pushed in.
 watch([modelPath, content], async () => {
   await nextTick()
@@ -211,7 +213,7 @@ const editorOptions = computed(() => ({
           :options="editorOptions"
           theme="vs"
           @change="onChange"
-          @mount="(e: typeof editor.value) => (editor = e)"
+          @mount="onMount"
         >
           <div class="grid h-full place-items-center text-xs text-muted-foreground">Loading editor...</div>
         </VueMonacoEditor>

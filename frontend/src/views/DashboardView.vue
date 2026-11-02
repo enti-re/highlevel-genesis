@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/composables/useAuth'
 import { useHlStatus } from '@/composables/useHlStatus'
 import { apiFetch, endSession, errorMessage } from '@/lib/api'
-import { auth, db } from '@/lib/firebase'
+import { db } from '@/lib/firebase'
 import { isGenerating } from '@/lib/lock'
 import type { Project } from '@/types'
 
