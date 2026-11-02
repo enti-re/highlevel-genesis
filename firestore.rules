@@ -1,0 +1,72 @@
+rules_version = '2';
+
+// Clients get read access to their own data and a narrow set of writes.
+// Everything that touches tokens, snapshots, generations or the generation
+// lock is written only by Cloud Functions (Admin SDK bypasses these rules).
+// hlConnections, oauthStates and rateLimits have no rules = no client access.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function project(pid) {
+      return get(/databases/$(database)/documents/projects/$(pid)).data;
+    }
+    function ownsProject(pid) {
+      return signedIn() && project(pid).ownerId == request.auth.uid && project(pid).deleted == false;
+    }
+    function notGenerating(pid) {
+      let active = project(pid).activeGeneration;
+      return active == null || request.time.toMillis() - active.startedAt > 600000;
+    }
+    function validName(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 80
+        && (!('description' in data) || (data.description is string && data.description.size() <= 500));
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /projects/{pid} {
+      allow read: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['ownerId', 'name', 'description', 'locationId', 'deleted', 'activeGeneration', 'createdAt', 'updatedAt'])
+        && request.resource.data.deleted == false
+        && request.resource.data.activeGeneration == null
+        && validName(request.resource.data);
+      // Soft delete only: `deleted` can be set but documents are never removed by clients.
+      allow update: if signedIn() && resource.data.ownerId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'description', 'deleted', 'updatedAt'])
+        && validName(request.resource.data);
+      allow delete: if false;
+
+      // Manual edits from the code editor. Blocked mid-generation so the AI's
+      // commit can't silently overwrite (or be overwritten by) a manual edit.
+      match /files/{fileId} {
+        allow read: if ownsProject(pid);
+        allow update: if ownsProject(pid) && notGenerating(pid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'updatedAt', 'updatedBy'])
+          && request.resource.data.content is string
+          && request.resource.data.content.size() <= 120000
+          && request.resource.data.updatedBy == 'user';
+        allow create, delete: if false;
+      }
+
+      match /snapshots/{id} {
+        allow read: if ownsProject(pid);
+        allow write: if false;
+      }
+      match /messages/{id} {
+        allow read: if ownsProject(pid);
+        allow write: if false;
+      }
+      match /generations/{id} {
+        allow read: if ownsProject(pid);
+        allow write: if false;
+      }
+    }
+  }
+}

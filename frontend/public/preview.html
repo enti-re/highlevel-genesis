@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Sandboxed (opaque origin) host page for generated apps. Its own CSP, not srcdoc, because srcdoc
+      inherits the Genesis CSP. No fetch, remote images or form posts; self-navigation is the known gap (DESIGN §9).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'"
+    />
+    <title>Preview</title>
+  </head>
+  <body>
+    <script>
+      // The parent sends the built app once we're ready; we replace this document with it.
+      window.addEventListener('message', function (e) {
+        if (e.source !== window.parent || !e.data || e.data.__genesis !== 'preview:render') return
+        document.open()
+        document.write(e.data.html)
+        document.close()
+      })
+      window.parent.postMessage({ __genesis: 'preview:ready' }, '*')
+    </script>
+  </body>
+</html>

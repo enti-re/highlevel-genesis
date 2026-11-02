@@ -1,0 +1,14 @@
+node_modules/
+dist/
+functions/lib/
+.env
+.env.*
+!.env.example
+*.local
+.secret.local
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+.firebase/
+.DS_Store
+HUMAN_TODO.md

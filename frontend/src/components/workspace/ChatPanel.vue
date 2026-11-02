@@ -1,0 +1,195 @@
+<script setup lang="ts">
+import { ArrowUpIcon, FileCodeIcon, Loader2Icon, PencilIcon, RotateCcwIcon, SquareIcon, TriangleAlertIcon } from '@lucide/vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Textarea } from '@/components/ui/textarea'
+import type { ChatMessage } from '@/types'
+
+const props = defineProps<{
+  messages: ChatMessage[]
+  phase: 'idle' | 'streaming' | 'recovering'
+  busy: boolean
+  cancelling: boolean
+  draftText: string
+  streamingPaths: string[]
+  editingPaths: Set<string>
+  completedPaths: Set<string>
+  hlConnected: boolean
+  blockedReason: string | null
+}>()
+const emit = defineEmits<{ send: [prompt: string]; cancel: [] }>()
+
+const input = ref('')
+const viewport = ref<HTMLElement | null>(null)
+
+const EXAMPLES = [
+  'Build a contact dashboard with search and a list of upcoming appointments',
+  'Show my latest conversations with unread counts, and let me open one to read its messages',
+  'A form to add a new contact with name, email, phone and tags',
+]
+
+const STATUS_LABEL: Record<string, { text: string; variant: 'secondary' | 'destructive' | 'outline' }> = {
+  complete: { text: 'Saved', variant: 'secondary' },
+  partial: { text: 'Partially saved', variant: 'destructive' },
+  failed: { text: 'Failed', variant: 'destructive' },
+  cancelled: { text: 'Cancelled', variant: 'outline' },
+  cancelled_partial: { text: 'Cancelled, partial save', variant: 'outline' },
+  no_changes: { text: 'No changes', variant: 'outline' },
+}
+
+const canSend = computed(() => !!input.value.trim() && !props.busy && !props.blockedReason)
+
+function send(text = input.value) {
+  const prompt = text.trim()
+  if (!prompt || props.busy || props.blockedReason) return
+  emit('send', prompt)
+  input.value = ''
+}
+
+/** The user prompt that produced a given assistant message, used for "Retry". */
+function promptBefore(index: number): string | null {
+  for (let i = index - 1; i >= 0; i--) if (props.messages[i].role === 'user') return props.messages[i].content
+  return null
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault()
+    send()
+  }
+}
+
+watch(
+  () => [props.messages.length, props.draftText.length, props.streamingPaths.length],
+  async () => {
+    await nextTick()
+    const el = viewport.value?.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null
+    el?.scrollTo({ top: el.scrollHeight })
+  },
+)
+</script>
+
+<template>
+  <div class="flex h-full flex-col">
+    <div ref="viewport" class="min-h-0 flex-1">
+      <ScrollArea class="h-full">
+        <div class="space-y-4 p-4">
+          <div v-if="!messages.length && phase === 'idle'" class="space-y-3 pt-6 text-sm">
+            <p class="font-medium">What should we build?</p>
+            <p class="text-muted-foreground">
+              Describe a HighLevel app. It will read live data from your
+              {{ hlConnected ? 'connected location' : 'location once you connect HighLevel' }}.
+            </p>
+            <button
+              v-for="ex in EXAMPLES"
+              :key="ex"
+              class="block w-full rounded-lg border bg-background p-3 text-left transition hover:bg-muted"
+              @click="send(ex)"
+            >
+              {{ ex }}
+            </button>
+          </div>
+
+          <template v-for="(m, i) in messages" :key="m.id">
+            <div v-if="m.role === 'user'" class="ml-8 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground whitespace-pre-wrap">
+              {{ m.content }}
+            </div>
+            <p v-else-if="m.role === 'system'" class="text-center text-xs text-muted-foreground">{{ m.content }}</p>
+            <div v-else class="mr-4 space-y-2 text-sm">
+              <p v-if="m.content" class="whitespace-pre-wrap">{{ m.content }}</p>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <Badge v-if="m.status && STATUS_LABEL[m.status]" :variant="STATUS_LABEL[m.status].variant">
+                  {{ STATUS_LABEL[m.status].text }}
+                </Badge>
+                <Badge v-for="f in m.files ?? []" :key="f" variant="outline" class="gap-1 font-mono">
+                  <FileCodeIcon class="size-3" />{{ f }}
+                </Badge>
+                <Badge v-for="f in m.deletedFiles ?? []" :key="`d-${f}`" variant="outline" class="font-mono line-through">{{ f }}</Badge>
+                <!-- Only shown when something looks off; a clean generation stays quiet. -->
+                <Badge
+                  v-if="m.confidence && m.confidence.level !== 'high' && m.status !== 'failed'"
+                  variant="outline"
+                  class="gap-1 border-amber-500/50 text-amber-700 dark:text-amber-400"
+                  :title="`Confidence ${m.confidence.score}/100`"
+                >
+                  <TriangleAlertIcon class="size-3" />{{ m.confidence.level === 'low' ? 'Likely broken' : 'Check preview' }}
+                </Badge>
+              </div>
+              <ul
+                v-if="m.confidence && m.confidence.level !== 'high' && m.status !== 'failed'"
+                class="space-y-0.5 text-xs text-muted-foreground"
+              >
+                <li v-for="r in m.confidence.reasons" :key="r">• {{ r }}</li>
+              </ul>
+              <Alert v-if="m.error" variant="destructive">
+                <TriangleAlertIcon />
+                <AlertDescription class="flex flex-col items-start gap-2">
+                  {{ m.error.message }}
+                  <Button
+                    v-if="m.error.retryable && promptBefore(i)"
+                    size="xs"
+                    variant="outline"
+                    :disabled="busy || !!blockedReason"
+                    @click="send(promptBefore(i)!)"
+                  >
+                    <RotateCcwIcon /> Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+              <ul v-if="m.warnings?.length" class="space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
+                <li v-for="w in m.warnings" :key="w">⚠ {{ w }}</li>
+              </ul>
+            </div>
+          </template>
+
+          <div v-if="phase !== 'idle'" class="mr-4 space-y-2 text-sm">
+            <p v-if="draftText.trim()" class="whitespace-pre-wrap">{{ draftText.trim() }}</p>
+            <div class="flex flex-wrap gap-1.5">
+              <Badge v-for="p in streamingPaths" :key="p" variant="outline" class="gap-1 font-mono">
+                <Loader2Icon v-if="!completedPaths.has(p)" class="size-3 animate-spin" />
+                <PencilIcon v-else-if="editingPaths.has(p)" class="size-3" />
+                <FileCodeIcon v-else class="size-3" />{{ p }}<span v-if="editingPaths.has(p)" class="text-muted-foreground">edit</span>
+              </Badge>
+            </div>
+            <p class="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2Icon class="size-3 animate-spin" />
+              {{
+                phase === 'recovering'
+                  ? 'Connection lost. Waiting for the server to save...'
+                  : draftText || streamingPaths.length
+                    ? 'Writing code...'
+                    : 'Thinking...'
+              }}
+            </p>
+          </div>
+          <p v-else-if="busy" class="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2Icon class="size-3 animate-spin" /> A generation is running for this project...
+          </p>
+        </div>
+      </ScrollArea>
+    </div>
+
+    <form class="space-y-2 border-t p-3" @submit.prevent="send()">
+      <p v-if="blockedReason" class="text-xs text-amber-700 dark:text-amber-400">{{ blockedReason }}</p>
+      <Textarea
+        v-model="input"
+        rows="3"
+        maxlength="4000"
+        class="resize-none"
+        :placeholder="messages.length ? 'Ask for a change...' : 'Describe the app you want...'"
+        :disabled="busy"
+        @keydown="onKeydown"
+      />
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-muted-foreground">Enter to send · Shift+Enter for a new line</span>
+        <Button v-if="busy" type="button" size="sm" variant="outline" :disabled="cancelling" @click="emit('cancel')">
+          <Loader2Icon v-if="cancelling" class="animate-spin" /><SquareIcon v-else /> Stop
+        </Button>
+        <Button v-else type="submit" size="sm" :disabled="!canSend"><ArrowUpIcon /> Send</Button>
+      </div>
+    </form>
+  </div>
+</template>

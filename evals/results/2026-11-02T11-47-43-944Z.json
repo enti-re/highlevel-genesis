@@ -1,0 +1,64 @@
+{
+  "summary": {
+    "ranAt": "2026-11-02T11:47:43.944Z",
+    "model": "gemini-3.5-flash",
+    "passRate": "1/1",
+    "meanScore": 100,
+    "ttftP50Ms": 5635,
+    "durationP50Ms": 41583,
+    "durationP95Ms": 41583,
+    "outputTokensMean": 10082,
+    "costPerCaseUsd": null
+  },
+  "results": [
+    {
+      "id": "contacts-table",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2518,
+        "output": 10082,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 5635,
+      "durationMs": 41583,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "location.get",
+            "ok": true
+          },
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 162,
+        "missingFiles": []
+      }
+    }
+  ]
+}

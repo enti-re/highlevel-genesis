@@ -1,0 +1,624 @@
+{
+  "summary": {
+    "ranAt": "2026-11-02T17:28:34.035Z",
+    "model": "gemini-3.5-flash",
+    "passRate": "5/15",
+    "meanScore": 41,
+    "ttftP50Ms": 12177,
+    "durationP50Ms": 696,
+    "durationP95Ms": 53772,
+    "outputTokensMean": 2149,
+    "costPerCaseUsd": null
+  },
+  "calibration": [
+    {
+      "bucket": "high (≥80)",
+      "cases": 5,
+      "worksRate": 100
+    },
+    {
+      "bucket": "medium (50–79)",
+      "cases": 0,
+      "worksRate": null
+    },
+    {
+      "bucket": "low (<50)",
+      "cases": 10,
+      "worksRate": 0
+    }
+  ],
+  "results": [
+    {
+      "id": "contacts-table",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2579,
+        "output": 8873,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 100,
+      "ttftMs": 6136,
+      "durationMs": 43382,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 183,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "appointments-upcoming",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2577,
+        "output": 6120,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 100,
+      "ttftMs": 10353,
+      "durationMs": 35467,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "calendars.list",
+            "ok": true
+          },
+          {
+            "op": "contacts.list",
+            "ok": true
+          },
+          {
+            "op": "calendars.events",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 727,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "conversations-inbox",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2584,
+        "output": 5683,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 100,
+      "ttftMs": 12177,
+      "durationMs": 36031,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "location.get",
+            "ok": true
+          },
+          {
+            "op": "conversations.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 127,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "tag-segments",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2581,
+        "output": 7220,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 100,
+      "ttftMs": 23798,
+      "durationMs": 53772,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 843,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "new-contact-form",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2591,
+        "output": 4340,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 100,
+      "ttftMs": 25808,
+      "durationMs": 42811,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 691,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "free-slots-booking",
+      "kind": "new",
+      "checks": {
+        "generated": false,
+        "expectedOps": false,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 10,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 696,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    },
+    {
+      "id": "kpi-overview",
+      "kind": "new",
+      "checks": {
+        "generated": false,
+        "expectedOps": false,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 10,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 551,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    },
+    {
+      "id": "contact-detail",
+      "kind": "new",
+      "checks": {
+        "generated": false,
+        "expectedOps": false,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 10,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 559,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    },
+    {
+      "id": "vague-prompt",
+      "kind": "new",
+      "checks": {
+        "generated": false,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 20,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 678,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    },
+    {
+      "id": "refine-add-search",
+      "kind": "refine",
+      "checks": {
+        "generated": false,
+        "expectedOps": false,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": false,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 5,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 618,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    },
+    {
+      "id": "refine-rename-title",
+      "kind": "refine",
+      "checks": {
+        "generated": false,
+        "expectedOps": false,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": false,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 5,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 667,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    },
+    {
+      "id": "refine-add-section",
+      "kind": "refine",
+      "checks": {
+        "generated": false,
+        "expectedOps": false,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 10,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 988,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    },
+    {
+      "id": "neg-hl-down",
+      "kind": "negative",
+      "checks": {
+        "generated": false,
+        "expectedOps": false,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 10,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 751,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    },
+    {
+      "id": "neg-prompt-injection",
+      "kind": "negative",
+      "checks": {
+        "generated": false,
+        "expectedOps": false,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 10,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 539,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    },
+    {
+      "id": "neg-unsupported-op",
+      "kind": "negative",
+      "checks": {
+        "generated": false,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": false,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 20,
+      "pass": false,
+      "status": null,
+      "error": "LLM_RATE_LIMITED",
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "confidence": 0,
+      "ttftMs": 0,
+      "durationMs": 643,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": null
+    }
+  ]
+}

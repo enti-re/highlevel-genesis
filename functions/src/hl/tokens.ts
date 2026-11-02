@@ -1,0 +1,173 @@
+/**
+ * HighLevel OAuth. Refresh tokens are single-use, so refresh runs under a Firestore
+ * lease: one request refreshes, concurrent ones wait and re-read.
+ */
+
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { logger } from "firebase-functions";
+import { HL_CLIENT_ID, HL_CLIENT_SECRET, oauthRedirectUri } from "../config";
+import { HttpError } from "../lib/errors";
+import { HL_API_BASE } from "./operations";
+
+export const HL_SCOPES = [
+  "contacts.readonly",
+  "contacts.write",
+  "conversations.readonly",
+  "conversations.write",
+  "conversations/message.readonly",
+  "conversations/message.write",
+  "calendars.readonly",
+  "calendars/events.readonly",
+  "locations.readonly",
+];
+
+const REFRESH_MARGIN_MS = 5 * 60 * 1000;
+const LEASE_MS = 20_000;
+
+export interface HlConnection {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  locationId: string;
+  companyId?: string | null;
+  scope?: string;
+  refreshLeaseUntil?: number;
+}
+
+const connectionRef = (uid: string) => getFirestore().collection("hlConnections").doc(uid);
+const userRef = (uid: string) => getFirestore().collection("users").doc(uid);
+
+export function buildAuthorizeUrl(state: string): string {
+  const url = new URL("https://marketplace.gohighlevel.com/oauth/chooselocation");
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("redirect_uri", oauthRedirectUri());
+  url.searchParams.set("client_id", HL_CLIENT_ID.value());
+  url.searchParams.set("scope", HL_SCOPES.join(" "));
+  url.searchParams.set("state", state);
+  return url.toString();
+}
+
+interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  scope?: string;
+  userType?: string;
+  locationId?: string;
+  companyId?: string;
+}
+
+async function tokenRequest(params: Record<string, string>): Promise<TokenResponse> {
+  const res = await fetch(`${HL_API_BASE}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({
+      client_id: HL_CLIENT_ID.value(),
+      client_secret: HL_CLIENT_SECRET.value(),
+      user_type: "Location",
+      redirect_uri: oauthRedirectUri(),
+      ...params,
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = (await res.json().catch(() => ({}))) as any;
+  if (!res.ok) {
+    logger.warn("HighLevel token request failed", { status: res.status, error: body?.error, message: body?.message });
+    const invalidGrant = res.status === 400 || res.status === 401;
+    throw new HttpError(
+      invalidGrant ? 401 : 502,
+      invalidGrant ? "HL_RECONNECT" : "HL_UNAVAILABLE",
+      invalidGrant ? "Your HighLevel connection expired. Please reconnect." : "HighLevel is not responding. Try again shortly.",
+      !invalidGrant,
+    );
+  }
+  return body as TokenResponse;
+}
+
+export async function exchangeCode(code: string): Promise<TokenResponse> {
+  return tokenRequest({ grant_type: "authorization_code", code });
+}
+
+export async function saveConnection(uid: string, t: TokenResponse, locationName: string | null) {
+  if (!t.locationId) {
+    throw new HttpError(400, "HL_NEEDS_LOCATION", "Please choose a sub-account (location) when connecting HighLevel.");
+  }
+  const batch = getFirestore().batch();
+  batch.set(connectionRef(uid), {
+    accessToken: t.access_token,
+    refreshToken: t.refresh_token,
+    expiresAt: Date.now() + t.expires_in * 1000,
+    locationId: t.locationId,
+    companyId: t.companyId ?? null,
+    scope: t.scope ?? "",
+    refreshLeaseUntil: 0,
+  } satisfies HlConnection);
+  batch.set(
+    userRef(uid),
+    { hl: { status: "connected", locationId: t.locationId, locationName, connectedAt: FieldValue.serverTimestamp() } },
+    { merge: true },
+  );
+  await batch.commit();
+}
+
+export async function markDisconnected(uid: string, status: "disconnected" | "expired") {
+  const batch = getFirestore().batch();
+  batch.delete(connectionRef(uid));
+  batch.set(userRef(uid), { hl: { status, locationId: null, locationName: null } }, { merge: true });
+  await batch.commit();
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Returns a usable access token. `staleToken` is a token HighLevel just
+ * rejected with 401 - it forces a refresh even if it hasn't expired yet.
+ */
+export async function getAccessToken(uid: string, staleToken?: string): Promise<{ token: string; locationId: string }> {
+  const ref = connectionRef(uid);
+  const db = getFirestore();
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpError(409, "HL_NOT_CONNECTED", "Connect your HighLevel account to load data.");
+    const conn = snap.data() as HlConnection;
+    const isUsable = (c: HlConnection) => c.accessToken !== staleToken && c.expiresAt - Date.now() > REFRESH_MARGIN_MS;
+    if (isUsable(conn)) return { token: conn.accessToken, locationId: conn.locationId };
+
+    const lease = await db.runTransaction(async (tx) => {
+      const s = await tx.get(ref);
+      const c = s.data() as HlConnection | undefined;
+      if (!c) return "gone" as const;
+      if (isUsable(c)) return "fresh" as const;
+      if ((c.refreshLeaseUntil ?? 0) > Date.now()) return "busy" as const;
+      tx.update(ref, { refreshLeaseUntil: Date.now() + LEASE_MS });
+      return { refreshToken: c.refreshToken };
+    });
+
+    if (lease === "gone") continue;
+    if (lease === "fresh") continue;
+    if (lease === "busy") {
+      await sleep(500 + attempt * 250);
+      continue;
+    }
+
+    try {
+      const t = await tokenRequest({ grant_type: "refresh_token", refresh_token: lease.refreshToken });
+      await ref.update({
+        accessToken: t.access_token,
+        refreshToken: t.refresh_token,
+        expiresAt: Date.now() + t.expires_in * 1000,
+        refreshLeaseUntil: 0,
+      });
+      return { token: t.access_token, locationId: conn.locationId };
+    } catch (err) {
+      if (err instanceof HttpError && err.code === "HL_RECONNECT") {
+        await markDisconnected(uid, "expired");
+      } else {
+        await ref.update({ refreshLeaseUntil: 0 }).catch(() => undefined);
+      }
+      throw err;
+    }
+  }
+  throw new HttpError(503, "HL_UNAVAILABLE", "Could not refresh the HighLevel connection. Try again.", true);
+}

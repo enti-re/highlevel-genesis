@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "genesis-app-builder",
+    "emulator": "demo-genesis"
+  }
+}

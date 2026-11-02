@@ -1,0 +1,593 @@
+{
+  "summary": {
+    "ranAt": "2026-11-02T11:59:15.483Z",
+    "model": "gemini-3.5-flash",
+    "passRate": "9/12",
+    "meanScore": 89,
+    "ttftP50Ms": 11015,
+    "durationP50Ms": 39516,
+    "durationP95Ms": 143436,
+    "outputTokensMean": 6948,
+    "costPerCaseUsd": null
+  },
+  "results": [
+    {
+      "id": "contacts-table",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2518,
+        "output": 6831,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 9257,
+      "durationMs": 37489,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 526,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "appointments-upcoming",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2516,
+        "output": 5548,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 15730,
+      "durationMs": 38307,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "calendars.list",
+            "ok": true
+          },
+          {
+            "op": "calendars.events",
+            "ok": true
+          },
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 766,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "conversations-inbox",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2523,
+        "output": 5817,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 14579,
+      "durationMs": 39516,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "conversations.list",
+            "ok": true
+          },
+          {
+            "op": "conversations.messages",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 357,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "tag-segments",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2520,
+        "output": 7247,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 12465,
+      "durationMs": 41296,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 297,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "new-contact-form",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 50,
+      "pass": false,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2530,
+        "output": 4072,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 11015,
+      "durationMs": 27204,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [
+          "Uncaught SyntaxError: Unexpected identifier '$' @:503",
+          "Uncaught SyntaxError: Unexpected identifier '$'"
+        ],
+        "calls": [],
+        "violations": [],
+        "textLength": 0,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "free-slots-booking",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2516,
+        "output": 5558,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 8971,
+      "durationMs": 30343,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "calendars.list",
+            "ok": true
+          },
+          {
+            "op": "calendars.freeSlots",
+            "ok": true
+          },
+          {
+            "op": "location.get",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 385,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "kpi-overview",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": false,
+        "rendered": false
+      },
+      "score": 50,
+      "pass": false,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2522,
+        "output": 6410,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 16287,
+      "durationMs": 62797,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [
+          "Uncaught SyntaxError: Unexpected identifier '$' @:657",
+          "Uncaught SyntaxError: Unexpected identifier '$'"
+        ],
+        "calls": [],
+        "violations": [],
+        "textLength": 0,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "contact-detail",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2520,
+        "output": 5738,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 4521,
+      "durationMs": 25318,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "contacts.list",
+            "ok": true
+          },
+          {
+            "op": "conversations.list",
+            "ok": true
+          },
+          {
+            "op": "conversations.messages",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 558,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "vague-prompt",
+      "kind": "new",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": false,
+        "hlCallsOk": true,
+        "rendered": false
+      },
+      "score": 65,
+      "pass": false,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 2510,
+        "output": 9425,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 11702,
+      "durationMs": 49377,
+      "edits": {
+        "applied": 0,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [
+          "Uncaught SyntaxError: Unexpected identifier '$' @:770",
+          "Uncaught SyntaxError: Unexpected identifier '$'"
+        ],
+        "calls": [],
+        "violations": [],
+        "textLength": 0,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "refine-add-search",
+      "kind": "refine",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 7854,
+        "output": 6352,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 6424,
+      "durationMs": 143436,
+      "edits": {
+        "applied": 1,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "location.get",
+            "ok": true
+          },
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 445,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "refine-rename-title",
+      "kind": "refine",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 11595,
+        "output": 6862,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 3473,
+      "durationMs": 36729,
+      "edits": {
+        "applied": 2,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "location.get",
+            "ok": true
+          },
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 534,
+        "missingFiles": []
+      }
+    },
+    {
+      "id": "refine-add-section",
+      "kind": "refine",
+      "checks": {
+        "generated": true,
+        "expectedOps": true,
+        "noForbiddenApis": true,
+        "handlesStates": true,
+        "refinementApplied": true,
+        "noRuntimeErrors": true,
+        "hlCallsOk": true,
+        "rendered": true
+      },
+      "score": 100,
+      "pass": true,
+      "status": "complete",
+      "error": null,
+      "model": "gemini-3.5-flash",
+      "usage": {
+        "input": 13265,
+        "output": 13511,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "costUsd": null,
+      "ttftMs": 7745,
+      "durationMs": 65899,
+      "edits": {
+        "applied": 1,
+        "failed": 0,
+        "repaired": 0
+      },
+      "render": {
+        "errors": [],
+        "calls": [
+          {
+            "op": "calendars.events",
+            "ok": true
+          },
+          {
+            "op": "calendars.list",
+            "ok": true
+          },
+          {
+            "op": "contacts.list",
+            "ok": true
+          }
+        ],
+        "violations": [],
+        "textLength": 896,
+        "missingFiles": []
+      }
+    }
+  ]
+}
