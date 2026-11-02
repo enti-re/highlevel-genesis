@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from 'vue-sonner'
 import { ArrowLeftIcon, CheckCircle2Icon, Loader2Icon, PlugIcon } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -28,6 +29,10 @@ const streaming = computed(() => gen.phase.value === 'streaming')
 const sendBlockedReason = computed(() =>
   dirtyCount.value ? `Save or discard ${dirtyCount.value} unsaved edit${dirtyCount.value > 1 ? 's' : ''} before generating.` : null,
 )
+function fixWithAi(prompt: string) {
+  if (sendBlockedReason.value) toast.warning(sendBlockedReason.value)
+  else void gen.start(prompt)
+}
 const restoreBlockedReason = computed(() => {
   if (gen.busy.value) return 'Wait for the current generation to finish.'
   if (dirtyCount.value) return 'Save or discard your unsaved edits first.'
@@ -93,7 +98,7 @@ const restoreBlockedReason = computed(() => {
       </ResizablePanel>
       <ResizableHandle with-handle />
       <ResizablePanel :default-size="36" :min-size="20">
-        <PreviewPanel :file-map="fileMap" :generating="gen.busy.value" :hl-connected="connected" />
+        <PreviewPanel :file-map="fileMap" :generating="gen.busy.value" :hl-connected="connected" @fix="fixWithAi" />
       </ResizablePanel>
     </ResizablePanelGroup>
   </div>

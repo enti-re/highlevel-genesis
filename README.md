@@ -143,10 +143,10 @@ npm run format:check --prefix functions && npm run format:check --prefix fronten
 ## What I would improve
 
 1. **Resumable streams.** Persist SSE events so a reconnecting tab replays tokens live instead of waiting for the final save.
-2. **Agentic self-repair.** Feed preview runtime errors and failed `hl` calls back to the model automatically for a fix-up pass, plus an eval set of prompts → "renders + calls succeed" checks.
+2. **Automatic self-repair and model routing.** "Fix with AI" sends a preview error back today; next, render headless before saving and loop at most twice, and route small edits to a cheaper model. The eval suite (`evals/`) measures both.
 3. **Encrypt HighLevel tokens at rest** with Cloud KMS (today: server-only Firestore collection, denied to clients by rules).
 4. **Webhooks + live data.** Subscribe to HighLevel webhooks (e.g. `ContactCreate`) and push them into the preview.
-5. **Smarter context** for large projects: send a file outline plus the files the request likely touches, instead of a character budget.
+5. **Smarter context for large projects:** a file map plus a `read_file` tool, then import-graph selection, and embeddings only at thousands of files (DESIGN §15).
 
 ## Deployment notes
 

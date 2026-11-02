@@ -1,5 +1,5 @@
 import { doc, onSnapshot } from 'firebase/firestore'
-import { computed, ref, watch } from 'vue'
+import { computed, effectScope, ref, watch } from 'vue'
 import { db } from '@/lib/firebase'
 import type { HlStatus } from '@/types'
 import { useAuth } from './useAuth'
@@ -14,23 +14,27 @@ export function useHlStatus() {
   const { user } = useAuth()
   if (!started) {
     started = true
-    watch(
-      user,
-      (u) => {
-        unsubscribe?.()
-        loaded.value = false
-        hl.value = {}
-        if (!u) return
-        unsubscribe = onSnapshot(
-          doc(db, 'users', u.uid),
-          (snap) => {
-            hl.value = (snap.get('hl') as HlStatus) ?? {}
-            loaded.value = true
-          },
-          () => (loaded.value = true),
-        )
-      },
-      { immediate: true },
+    // Detached scope: tied to the app, not to the first component that asked, so it survives
+    // that view unmounting and follows sign-out / sign-in as a different user.
+    effectScope(true).run(() =>
+      watch(
+        user,
+        (u) => {
+          unsubscribe?.()
+          loaded.value = false
+          hl.value = {}
+          if (!u) return
+          unsubscribe = onSnapshot(
+            doc(db, 'users', u.uid),
+            (snap) => {
+              hl.value = (snap.get('hl') as HlStatus) ?? {}
+              loaded.value = true
+            },
+            () => (loaded.value = true),
+          )
+        },
+        { immediate: true },
+      ),
     )
   }
   const connected = computed(() => hl.value.status === 'connected')

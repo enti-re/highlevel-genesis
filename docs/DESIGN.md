@@ -380,9 +380,15 @@ Verified in the browser: an injected inline script, a script from an unknown dom
 ## 15. Future work
 
 1. Resumable streams (§12) and a generation queue.
-2. **Self-repair loop:** feed preview runtime errors and failed `hl` calls back to the model automatically when confidence is low, and measure the lift with the eval suite.
+2. **Automatic self-repair:** today "Fix with AI" on the preview's error banner sends the runtime error back through the normal pipeline (user-triggered). Next: render headless before saving and feed errors and failed `hl` calls back automatically (bounded, ≤2 rounds), measuring the lift with the eval suite.
 3. KMS envelope encryption for HighLevel tokens.
-4. Webhooks: HighLevel events (e.g. `ContactCreate`) pushed into running previews.
+4. Webhooks: HighLevel events (e.g. `ContactCreate`) → `/hl/webhook` (signature-verified, routed by locationId) → Firestore → parent page → `hl.on(event, cb)` in running previews.
+6. **AI roadmap:**
+   - **Model routing:** small edits to a faster, cheaper model; new apps and big changes to Opus. Thresholds set by the eval suite.
+   - **Online feedback loop:** treat a retry or restore right after a generation, or quick hand edits, as implicit failure signals; review them and turn them into eval cases.
+   - **LLM-as-judge:** a rubric-graded check that the app matches the request and looks right, next to today's mechanical checks.
+   - **Budgets:** per-user and global daily token/$ limits (today: per-generation caps, rate limits, and a provider spend limit).
+   - **Human-in-the-loop for CRM writes:** previews ask before `sendMessage`/`create`/`update`.
 5. **Scaling the AI context** (today: every request sends all files, ≤160K chars, which suits 3–10-file apps). Move up a stage only when the trigger fires, and gate each stage on the eval suite (pass rate must not drop; input tokens and TTFT should).
 
    | Stage | Trigger | What changes |

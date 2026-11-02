@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ActivityIcon, Loader2Icon, PlugZapIcon, RotateCwIcon, TriangleAlertIcon } from '@lucide/vue'
+import { ActivityIcon, Loader2Icon, PlugZapIcon, RotateCwIcon, TriangleAlertIcon, WandSparklesIcon } from '@lucide/vue'
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -14,10 +14,20 @@ const props = defineProps<{
   generating: boolean
   hlConnected: boolean
 }>()
+const emit = defineEmits<{ fix: [prompt: string] }>()
 
 const iframe = ref<HTMLIFrameElement | null>(null)
 const reloadKey = ref(0)
 const { calls, runtimeErrors, clear } = useHlBridge(iframe)
+
+// Closes the loop by hand: the user sends the runtime error back through the normal generation path.
+function fixWithAi() {
+  const errors = [...new Set(runtimeErrors.value)]
+    .slice(-3)
+    .map((e) => `- ${e}`)
+    .join('\n')
+  emit('fix', `The preview throws this runtime error:\n${errors}\nFind the cause and fix it, changing as little code as possible.`)
+}
 
 /** Saved files only: half-written streaming code would just throw syntax errors. */
 const preview = computed(() => buildPreviewHtml(props.fileMap))
@@ -97,7 +107,10 @@ const failedCalls = computed(() => calls.value.filter((c) => !c.ok).length)
       <Alert v-if="runtimeErrors.length" variant="destructive">
         <TriangleAlertIcon />
         <AlertTitle>The app threw an error</AlertTitle>
-        <AlertDescription class="font-mono text-xs">{{ runtimeErrors.at(-1) }}</AlertDescription>
+        <AlertDescription class="space-y-2">
+          <p class="font-mono text-xs">{{ runtimeErrors.at(-1) }}</p>
+          <Button size="xs" variant="outline" :disabled="generating" @click="fixWithAi"><WandSparklesIcon /> Fix with AI</Button>
+        </AlertDescription>
       </Alert>
     </div>
 
