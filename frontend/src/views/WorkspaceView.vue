@@ -54,7 +54,7 @@ const restoreBlockedReason = computed(() => {
           <CheckCircle2Icon class="size-3 text-green-600" /> {{ hl.locationName || 'HighLevel connected' }}
         </Badge>
         <Button v-else size="sm" variant="outline" @click="router.push('/dashboard')"><PlugIcon /> Connect HighLevel</Button>
-        <SnapshotSheet :project-id="id" :snapshots="snapshots" :blocked-reason="restoreBlockedReason" />
+        <SnapshotSheet :project-id="id" :snapshots="snapshots" :file-map="fileMap" :blocked-reason="restoreBlockedReason" />
       </div>
     </header>
 

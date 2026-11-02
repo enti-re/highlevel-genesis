@@ -15,11 +15,17 @@ import type { Snapshot } from '@/types'
 const props = defineProps<{
   projectId: string
   snapshots: Snapshot[]
+  /** Live project files, to tell whether a snapshot is what's on screen right now. */
+  fileMap: Map<string, string>
   /** Why restoring is unavailable right now (generation running, unsaved edits). */
   blockedReason: string | null
 }>()
 
 const pendingRestore = ref<Snapshot | null>(null)
+
+// "Current" means identical to the live files, not just newest: after a saved hand edit the newest
+// snapshot differs and must stay restorable.
+const isCurrent = (s: Snapshot) => s.files.length === props.fileMap.size && s.files.every((f) => props.fileMap.get(f.path) === f.content)
 const restoring = ref(false)
 const diff = ref<{ path: string; before: string; after: string; label: string } | null>(null)
 
@@ -87,14 +93,15 @@ const language = (path: string) =>
             <div class="min-w-0">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 {{ s.label }}
-                <Badge v-if="i === 0" variant="secondary">Current</Badge>
+                <Badge v-if="isCurrent(s)" variant="secondary">Current</Badge>
+                <Badge v-else-if="i === 0" variant="outline">Edited since</Badge>
                 <Badge v-if="s.status === 'partial'" variant="destructive">Partial</Badge>
               </div>
               <p class="text-xs text-muted-foreground">{{ formatTime(s) }} · {{ s.files.length }} files</p>
               <p v-if="s.prompt" class="mt-1 line-clamp-2 text-xs italic text-muted-foreground">"{{ s.prompt }}"</p>
             </div>
             <Button
-              v-if="i !== 0"
+              v-if="!isCurrent(s)"
               size="xs"
               variant="outline"
               :disabled="!!blockedReason"
