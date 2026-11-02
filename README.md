@@ -102,7 +102,7 @@ npm --prefix functions install && npm --prefix frontend install
 # Emulator config (mock mode: canned LLM stream + fake HighLevel data, no keys needed)
 cp .env.example functions/.env.local    # then set MOCK_LLM=true MOCK_HL=true,
                                         # API_BASE_URL=http://127.0.0.1:5001/demo-genesis/us-central1/api
-printf 'ANTHROPIC_API_KEY=x\nHL_CLIENT_SECRET=x\n' > functions/.secret.local
+printf 'ANTHROPIC_API_KEY=x\nHL_CLIENT_SECRET=x\nGEMINI_API_KEY=x\n' > functions/.secret.local
 printf 'VITE_USE_EMULATORS=true\nVITE_FIREBASE_PROJECT_ID=demo-genesis\nVITE_API_BASE_URL=http://127.0.0.1:5001/demo-genesis/us-central1/api\n' > frontend/.env.development.local
 
 npm --prefix functions run build
@@ -155,6 +155,7 @@ firebase use --add                                   # select your real project 
 cp .env.example functions/.env                       # fill HL_CLIENT_ID, API_BASE_URL, APP_URL (MOCK_* = false)
 firebase functions:secrets:set ANTHROPIC_API_KEY
 firebase functions:secrets:set HL_CLIENT_SECRET
+firebase functions:secrets:set GEMINI_API_KEY   # only used with LLM_PROVIDER=gemini; any placeholder otherwise
 cp .env.example frontend/.env                        # fill VITE_FIREBASE_* and VITE_API_BASE_URL
 firebase deploy --only firestore,functions,hosting   # predeploy hooks build both packages
 ```

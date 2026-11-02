@@ -3,13 +3,14 @@ import { defineSecret, defineString } from "firebase-functions/params";
 // Secrets live in Secret Manager in production and functions/.secret.local in the emulator.
 export const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 export const HL_CLIENT_SECRET = defineSecret("HL_CLIENT_SECRET");
+export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
 // Plain config lives in functions/.env (see .env.example at the repo root).
 export const HL_CLIENT_ID = defineString("HL_CLIENT_ID");
 export const API_BASE_URL = defineString("API_BASE_URL");
 export const APP_URL = defineString("APP_URL", { default: "http://localhost:5173" });
 export const LLM_MODEL = defineString("LLM_MODEL", { default: "claude-opus-5-5" });
-/** "anthropic" (deployed) or "gemini" (emulator-only, to save credits while developing). */
+/** "anthropic" (default) or "gemini" (opt-in, for testing without Claude credits). */
 export const LLM_PROVIDER = defineString("LLM_PROVIDER", { default: "anthropic" });
 /** Local development only: canned LLM stream / fake HighLevel data, no external calls. */
 export const MOCK_LLM = defineString("MOCK_LLM", { default: "false" });

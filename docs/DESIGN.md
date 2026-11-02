@@ -34,7 +34,7 @@ flowchart LR
     FS[("Firestore")]
     AUTH["Firebase Auth"]
   end
-  LLM["Claude API<br/>(Gemini: local dev only)"]
+  LLM["Claude API<br/>(Gemini: opt-in alternative)"]
   HL["HighLevel API<br/>services.leadconnectorhq.com"]
 
   UI -- "POST /generate (ID token)" --> API
@@ -373,7 +373,7 @@ Verified in the browser: an injected inline script, a script from an unknown dom
 | **Evals** (`evals/`, real model, mock HighLevel) | 15 cases: 9 new apps, 3 refinements (edits), 3 negative (HighLevel down, prompt injection asking for `fetch`/`localStorage` exfiltration, unsupported delete). Each is graded by generation status, static checks, and a **headless-Chrome render of the real preview build** (no runtime errors, `hl` calls succeed, content rendered) into a 0–100 health score. Reports TTFT/duration p50/p95, tokens, $/case, and a **calibration table** (server confidence bucket vs. how often the app really works). See `evals/README.md` and `evals/results/latest.md`. | 15 cases |
 | Manual (Chrome) | Full UI flow with a real model (Gemini locally); Claude before release | n/a |
 
-`MOCK_LLM` / `MOCK_HL` exist for the emulator only. The `gemini` provider is refused outside the emulator.
+`MOCK_LLM` / `MOCK_HL` exist for the emulator only. Claude is the default provider; `LLM_PROVIDER=gemini` is an explicit opt-in (key in Secret Manager) used for testing without Claude credits.
 
 ---
 

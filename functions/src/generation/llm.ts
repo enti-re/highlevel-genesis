@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ANTHROPIC_API_KEY, LLM_MODEL, LLM_PROVIDER, isMockLlm } from "../config";
 import { SYSTEM_PROMPT } from "./prompt";
 import { mockCompletion } from "./mockLlm";
-import { geminiCompletion, LlmHttpError } from "./gemini";
+import { geminiCompletion } from "./gemini";
 
 export type LlmChunk =
   | { type: "text"; text: string }
@@ -31,12 +31,7 @@ export async function streamCompletion(
   onChunk: (chunk: LlmChunk) => void,
 ): Promise<LlmResult> {
   if (isMockLlm()) return mockCompletion(messages, signal, onChunk);
-  if (LLM_PROVIDER.value() === "gemini") {
-    if (process.env.FUNCTIONS_EMULATOR !== "true") {
-      throw new LlmHttpError(401, "LLM_PROVIDER=gemini is for local development only.");
-    }
-    return geminiCompletion(messages, signal, onChunk);
-  }
+  if (LLM_PROVIDER.value() === "gemini") return geminiCompletion(messages, signal, onChunk);
 
   const stream = getClient().beta.messages.stream(
     {

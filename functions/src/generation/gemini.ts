@@ -1,8 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { LlmChunk, LlmResult } from "./llm";
 import { SYSTEM_PROMPT } from "./prompt";
+import { GEMINI_API_KEY } from "../config";
 
-/** Emulator only (llm.ts refuses it elsewhere): a real model for local runs without spending Claude credits. */
+/** Alternative provider, opt-in with LLM_PROVIDER=gemini: local runs and testing without Claude credits. Claude is the default. */
 
 export class LlmHttpError extends Error {
   constructor(
@@ -18,8 +19,8 @@ export async function geminiCompletion(
   signal: AbortSignal,
   onChunk: (chunk: LlmChunk) => void,
 ): Promise<LlmResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new LlmHttpError(401, "GEMINI_API_KEY is not set in functions/.env.local");
+  const apiKey = GEMINI_API_KEY.value();
+  if (!apiKey) throw new LlmHttpError(401, "GEMINI_API_KEY secret is not set.");
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
   const res = await fetch(

@@ -52,5 +52,5 @@ jobs:
           API_BASE_URL=http://127.0.0.1:5001/demo-genesis/us-central1/api
           APP_URL=http://localhost:5173
           ENV
-          printf 'ANTHROPIC_API_KEY=ci\nHL_CLIENT_SECRET=ci\n' > functions/.secret.local
+          printf 'ANTHROPIC_API_KEY=ci\nHL_CLIENT_SECRET=ci\nGEMINI_API_KEY=ci\n' > functions/.secret.local
       - run: npx --yes firebase-tools@15.34.2 emulators:exec --only auth,firestore,functions --project demo-genesis "node scripts/e2e-emulator.mjs"
