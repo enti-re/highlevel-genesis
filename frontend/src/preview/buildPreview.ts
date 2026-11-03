@@ -45,8 +45,8 @@ export function buildPreviewHtml(files: Map<string, string>): { html: string; mi
 
   // Kit first (Vue, Tailwind, theme, helpers), then the window.hl bridge, then the app's own head.
   const runtime = `${KIT_HEAD}\n<script>${HL_RUNTIME}</script>`
-  if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => `${m}\n${runtime}`)
-  else if (/<html[^>]*>/i.test(html)) html = html.replace(/<html[^>]*>/i, (m) => `${m}<head>${runtime}</head>`)
+  if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (openTag) => `${openTag}\n${runtime}`)
+  else if (/<html[^>]*>/i.test(html)) html = html.replace(/<html[^>]*>/i, (openTag) => `${openTag}<head>${runtime}</head>`)
   else html = runtime + html
 
   return { html, missing }

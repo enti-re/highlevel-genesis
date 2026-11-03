@@ -115,13 +115,13 @@ export async function mockCompletion(
   onChunk: (chunk: LlmChunk) => void,
 ): Promise<LlmResult> {
   const last = messages[messages.length - 1];
-  const text = (m: Anthropic.MessageParam) => (typeof m.content === "string" ? m.content : "");
+  const text = (message: Anthropic.MessageParam) => (typeof message.content === "string" ? message.content : "");
   const request = text(last).includes("<request>") ? text(last).slice(text(last).lastIndexOf("<request>")) : "";
   // The route's follow-up after a failed edit: re-send whole files (unless the test asks it not to).
   const isRepair = text(last).includes("could not be applied");
   const shouldFail = /\bfail\b/i.test(request);
   const output = isRepair
-    ? messages.some((m) => /\bnorepair\b/.test(text(m)))
+    ? messages.some((message) => /\bnorepair\b/.test(text(message)))
       ? "Sorry, I can't."
       : APP
     : /\brename\b/i.test(request)
@@ -133,7 +133,7 @@ export async function mockCompletion(
   for (let i = 0; i < cutoff; i += 40) {
     if (signal.aborted) throw signal.reason ?? new Error("aborted");
     onChunk({ type: "text", text: output.slice(i, Math.min(i + 40, cutoff)) });
-    await new Promise((r) => setTimeout(r, 15));
+    await new Promise((resolve) => setTimeout(resolve, 15));
   }
   if (shouldFail) throw new Error("Simulated connection drop");
   return { stopReason: "end_turn", usage: null };

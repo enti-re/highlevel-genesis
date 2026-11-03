@@ -55,9 +55,9 @@ function promptBefore(index: number): string | null {
   return null
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-    e.preventDefault()
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault()
     send()
   }
 }
@@ -84,63 +84,68 @@ watch(
               {{ hlConnected ? 'connected location' : 'location once you connect HighLevel' }}.
             </p>
             <button
-              v-for="ex in EXAMPLES"
-              :key="ex"
+              v-for="example in EXAMPLES"
+              :key="example"
               class="block w-full rounded-lg border bg-background p-3 text-left transition hover:bg-muted"
-              @click="send(ex)"
+              @click="send(example)"
             >
-              {{ ex }}
+              {{ example }}
             </button>
           </div>
 
-          <template v-for="(m, i) in messages" :key="m.id">
-            <div v-if="m.role === 'user'" class="ml-8 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground whitespace-pre-wrap">
-              {{ m.content }}
+          <template v-for="(message, index) in messages" :key="message.id">
+            <div
+              v-if="message.role === 'user'"
+              class="ml-8 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground whitespace-pre-wrap"
+            >
+              {{ message.content }}
             </div>
-            <p v-else-if="m.role === 'system'" class="text-center text-xs text-muted-foreground">{{ m.content }}</p>
+            <p v-else-if="message.role === 'system'" class="text-center text-xs text-muted-foreground">{{ message.content }}</p>
             <div v-else class="mr-4 space-y-2 text-sm">
-              <p v-if="m.content" class="whitespace-pre-wrap">{{ m.content }}</p>
+              <p v-if="message.content" class="whitespace-pre-wrap">{{ message.content }}</p>
               <div class="flex flex-wrap items-center gap-1.5">
-                <Badge v-if="m.status && STATUS_LABEL[m.status]" :variant="STATUS_LABEL[m.status].variant">
-                  {{ STATUS_LABEL[m.status].text }}
+                <Badge v-if="message.status && STATUS_LABEL[message.status]" :variant="STATUS_LABEL[message.status].variant">
+                  {{ STATUS_LABEL[message.status].text }}
                 </Badge>
-                <Badge v-for="f in m.files ?? []" :key="f" variant="outline" class="gap-1 font-mono">
-                  <FileCodeIcon class="size-3" />{{ f }}
+                <Badge v-for="file in message.files ?? []" :key="file" variant="outline" class="gap-1 font-mono">
+                  <FileCodeIcon class="size-3" />{{ file }}
                 </Badge>
-                <Badge v-for="f in m.deletedFiles ?? []" :key="`d-${f}`" variant="outline" class="font-mono line-through">{{ f }}</Badge>
+                <Badge v-for="file in message.deletedFiles ?? []" :key="`d-${file}`" variant="outline" class="font-mono line-through">{{
+                  file
+                }}</Badge>
                 <!-- Only shown when something looks off; a clean generation stays quiet. -->
                 <Badge
-                  v-if="m.confidence && m.confidence.level !== 'high' && m.status !== 'failed'"
+                  v-if="message.confidence && message.confidence.level !== 'high' && message.status !== 'failed'"
                   variant="outline"
                   class="gap-1 border-amber-500/50 text-amber-700 dark:text-amber-400"
-                  :title="`Confidence ${m.confidence.score}/100`"
+                  :title="`Confidence ${message.confidence.score}/100`"
                 >
-                  <TriangleAlertIcon class="size-3" />{{ m.confidence.level === 'low' ? 'Likely broken' : 'Check preview' }}
+                  <TriangleAlertIcon class="size-3" />{{ message.confidence.level === 'low' ? 'Likely broken' : 'Check preview' }}
                 </Badge>
               </div>
               <ul
-                v-if="m.confidence && m.confidence.level !== 'high' && m.status !== 'failed'"
+                v-if="message.confidence && message.confidence.level !== 'high' && message.status !== 'failed'"
                 class="space-y-0.5 text-xs text-muted-foreground"
               >
-                <li v-for="r in m.confidence.reasons" :key="r">• {{ r }}</li>
+                <li v-for="reason in message.confidence.reasons" :key="reason">• {{ reason }}</li>
               </ul>
-              <Alert v-if="m.error" variant="destructive">
+              <Alert v-if="message.error" variant="destructive">
                 <TriangleAlertIcon />
                 <AlertDescription class="flex flex-col items-start gap-2">
-                  {{ m.error.message }}
+                  {{ message.error.message }}
                   <Button
-                    v-if="m.error.retryable && promptBefore(i)"
+                    v-if="message.error.retryable && promptBefore(index)"
                     size="xs"
                     variant="outline"
                     :disabled="busy || !!blockedReason"
-                    @click="send(promptBefore(i)!)"
+                    @click="send(promptBefore(index)!)"
                   >
                     <RotateCcwIcon /> Retry
                   </Button>
                 </AlertDescription>
               </Alert>
-              <ul v-if="m.warnings?.length" class="space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
-                <li v-for="w in m.warnings" :key="w">⚠ {{ w }}</li>
+              <ul v-if="message.warnings?.length" class="space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
+                <li v-for="warning in message.warnings" :key="warning">⚠ {{ warning }}</li>
               </ul>
             </div>
           </template>
@@ -148,10 +153,11 @@ watch(
           <div v-if="phase !== 'idle'" class="mr-4 space-y-2 text-sm">
             <p v-if="draftText.trim()" class="whitespace-pre-wrap">{{ draftText.trim() }}</p>
             <div class="flex flex-wrap gap-1.5">
-              <Badge v-for="p in streamingPaths" :key="p" variant="outline" class="gap-1 font-mono">
-                <Loader2Icon v-if="!completedPaths.has(p)" class="size-3 animate-spin" />
-                <PencilIcon v-else-if="editingPaths.has(p)" class="size-3" />
-                <FileCodeIcon v-else class="size-3" />{{ p }}<span v-if="editingPaths.has(p)" class="text-muted-foreground">edit</span>
+              <Badge v-for="path in streamingPaths" :key="path" variant="outline" class="gap-1 font-mono">
+                <Loader2Icon v-if="!completedPaths.has(path)" class="size-3 animate-spin" />
+                <PencilIcon v-else-if="editingPaths.has(path)" class="size-3" />
+                <FileCodeIcon v-else class="size-3" />{{ path
+                }}<span v-if="editingPaths.has(path)" class="text-muted-foreground">edit</span>
               </Badge>
             </div>
             <p class="flex items-center gap-2 text-xs text-muted-foreground">

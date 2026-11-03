@@ -10,8 +10,8 @@ const REQUEST_TIMEOUT_MS = 15_000;
 
 async function rawFetch(token: string, req: HlRequest): Promise<any> {
   const url = new URL(HL_API_BASE + req.path);
-  for (const [k, v] of Object.entries(req.query ?? {})) {
-    if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
+  for (const [key, value] of Object.entries(req.query ?? {})) {
+    if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
   }
   let res: Response;
   try {

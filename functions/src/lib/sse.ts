@@ -1,5 +1,8 @@
 import type { Response } from "express";
 
+/** Comment lines on this interval keep proxies from closing an idle stream. */
+const HEARTBEAT_MS = 10_000;
+
 /** Server-Sent Events writer. The event protocol is documented in the README. */
 export function openSse(res: Response) {
   res.status(200);
@@ -17,7 +20,7 @@ export function openSse(res: Response) {
   // Keeps proxies from closing the stream while the model thinks before the first token.
   const heartbeat = setInterval(() => {
     if (!closed) res.write(": ping\n\n");
-  }, 10_000);
+  }, HEARTBEAT_MS);
 
   return {
     send(event: string, data: unknown) {

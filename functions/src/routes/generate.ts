@@ -17,6 +17,10 @@ import { stripCodeFence, stripWrapperTags } from "../generation/validate";
 
 const HARD_TIMEOUT_MS = 8 * 60 * 1000;
 const MAX_PROMPT_CHARS = 4000;
+const GENERATIONS_PER_WINDOW = 10;
+const GENERATION_WINDOW_MS = 10 * 60 * 1000;
+/** The 6 messages prompt.ts sends plus the prompt just stored (dropped before building context). */
+const HISTORY_TO_LOAD = 7;
 
 type AbortReason = "cancelled" | "timeout";
 
@@ -33,7 +37,7 @@ export async function generateHandler(req: Request, res: Response) {
   if (prompt.length > MAX_PROMPT_CHARS) {
     throw new HttpError(400, "BAD_REQUEST", `Keep the request under ${MAX_PROMPT_CHARS} characters.`);
   }
-  await enforceRateLimit(user.uid, "generate", 10, 10 * 60 * 1000);
+  await enforceRateLimit(user.uid, "generate", GENERATIONS_PER_WINDOW, GENERATION_WINDOW_MS);
   const { ref: projectRef } = await getOwnedProject(projectId, user.uid);
 
   // Per-project lock: a double-submit or second tab can't start two generations.
@@ -68,7 +72,7 @@ export async function generateHandler(req: Request, res: Response) {
   const abort = new AbortController();
   const abortWith = (reason: AbortReason) => !abort.signal.aborted && abort.abort(reason);
   const unsubscribe = genRef.onSnapshot(
-    (s) => s.get("cancelRequested") && abortWith("cancelled"),
+    (generationSnap) => generationSnap.get("cancelRequested") && abortWith("cancelled"),
     () => undefined,
   );
   const timeout = setTimeout(() => abortWith("timeout"), HARD_TIMEOUT_MS);
@@ -83,21 +87,21 @@ export async function generateHandler(req: Request, res: Response) {
   let failure: GenerationFailure | null = null;
 
   const forward = (events: ParserEvent[]) => {
-    for (const e of events) {
-      if (e.type === "text") sse.send("text", { delta: e.text });
-      else if (e.type === "file_start") sse.send("file_start", { path: e.path });
-      else if (e.type === "file_delta") sse.send("token", { path: e.path, delta: e.text });
-      else if (e.type === "file_end") sse.send("file_end", { path: e.path });
-      else if (e.type === "file_delete") sse.send("file_delete", { path: e.path });
-      else if (e.type === "edit_start") sse.send("edit_start", { path: e.path });
-      else if (e.type === "edit_end") sse.send("edit_end", { path: e.path });
+    for (const event of events) {
+      if (event.type === "text") sse.send("text", { delta: event.text });
+      else if (event.type === "file_start") sse.send("file_start", { path: event.path });
+      else if (event.type === "file_delta") sse.send("token", { path: event.path, delta: event.text });
+      else if (event.type === "file_end") sse.send("file_end", { path: event.path });
+      else if (event.type === "file_delete") sse.send("file_delete", { path: event.path });
+      else if (event.type === "edit_start") sse.send("edit_start", { path: event.path });
+      else if (event.type === "edit_end") sse.send("edit_end", { path: event.path });
     }
   };
 
   try {
     const [existing, history, userSnap] = await Promise.all([
       loadFiles(projectRef),
-      loadHistory(projectRef, 7),
+      loadHistory(projectRef, HISTORY_TO_LOAD),
       db().collection("users").doc(user.uid).get(),
     ]);
     const hl = userSnap.get("hl") as { status?: string; locationName?: string; locationId?: string } | undefined;
@@ -141,12 +145,12 @@ export async function generateHandler(req: Request, res: Response) {
     resolved = resolveEdits(existing, parsed);
     for (const [path, reason] of resolved.failures) logger.warn("edit_failed", { projectId, generationId: genRef.id, path, reason });
     // A "complete rewrite" of a file the model never saw would be invented, not repaired, so those stay failed.
-    const repairable = [...resolved.failures].filter(([p]) => !omittedFiles.includes(p));
+    const repairable = [...resolved.failures].filter(([path]) => !omittedFiles.includes(path));
 
     // One extra call that asks for complete corrected files; only the requested paths are taken from it.
     const requestRepair = async (paths: string[], problem: string) => {
       let repairParser = new FileStreamParser();
-      const onlyFiles = (events: ParserEvent[]) => forward(events.filter((e) => e.type !== "text"));
+      const onlyFiles = (events: ParserEvent[]) => forward(events.filter((event) => event.type !== "text"));
       const repair = await streamCompletion(
         [
           ...messages,
@@ -170,18 +174,18 @@ export async function generateHandler(req: Request, res: Response) {
     };
 
     if (!failure && repairable.length > 0) {
-      const paths = repairable.map(([p]) => p);
+      const paths = repairable.map(([path]) => path);
       sse.send("warning", { message: `A quick edit to ${paths.join(", ")} didn't match, so rewriting it in full.` });
       const files = await requestRepair(
         paths,
-        `These edits could not be applied:\n${repairable.map(([p, r]) => `- ${p}: ${r}`).join("\n")}\n\nApply every change from your previous answer.`,
+        `These edits could not be applied:\n${repairable.map(([path, reason]) => `- ${path}: ${reason}`).join("\n")}\n\nApply every change from your previous answer.`,
       );
       resolved = applyRepair(resolved, files, paths);
     }
 
     // A syntax error in app.js means a blank preview. Ask once for a fix; keep it only if it parses.
     // Checked after the same cleanup validation applies, so a stray fence or wrapper tag isn't sent for repair.
-    const cleaned = new Map([...resolved.proposed].map(([p, c]) => [p, stripWrapperTags(p, stripCodeFence(c))]));
+    const cleaned = new Map([...resolved.proposed].map(([path, content]) => [path, stripWrapperTags(path, stripCodeFence(content))]));
     const syntaxErrors = failure ? new Map<string, string>() : jsSyntaxErrors(cleaned);
     if (syntaxErrors.size > 0) {
       const paths = [...syntaxErrors.keys()];
@@ -189,9 +193,11 @@ export async function generateHandler(req: Request, res: Response) {
       sse.send("warning", { message: `${paths.join(", ")} had a JavaScript syntax error, fixing it.` });
       const files = await requestRepair(
         paths,
-        `Your code has JavaScript syntax errors:\n${[...syntaxErrors].map(([p, e]) => `- ${p}: ${e}`).join("\n")}\nA common cause is a backtick or \${...} inside the backtick template string.`,
+        `Your code has JavaScript syntax errors:\n${[...syntaxErrors].map(([path, error]) => `- ${path}: ${error}`).join("\n")}\nA common cause is a backtick or \${...} inside the backtick template string.`,
       );
-      const fixed = new Map([...files].filter(([p]) => paths.includes(p) && jsSyntaxErrors(new Map([[p, files.get(p)!]])).size === 0));
+      const fixed = new Map(
+        [...files].filter(([path]) => paths.includes(path) && jsSyntaxErrors(new Map([[path, files.get(path)!]])).size === 0),
+      );
       for (const [path, content] of fixed) resolved.proposed.set(path, content);
       resolved.stats.syntaxRepaired = fixed.size;
     }

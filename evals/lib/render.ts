@@ -19,19 +19,19 @@ const PREVIEW_CSP = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval
 const HARNESS = String.raw`<script>
 (function () {
   var out = { errors: [], calls: [], violations: [], textLength: 0 };
-  window.addEventListener('error', function (e) { out.errors.push(String(e.message || e.type) + (e.filename ? ' @' + e.filename.split('/').pop() + ':' + e.lineno : '')); }, true);
-  window.addEventListener('unhandledrejection', function (e) { var r = e.reason; out.errors.push('unhandled: ' + ((r && (r.message || String(r))) || 'rejection')); });
-  document.addEventListener('securitypolicyviolation', function (e) { out.violations.push(e.violatedDirective + ' ' + e.blockedURI); });
-  window.addEventListener('message', function (ev) {
-    var m = ev.data;
-    if (!m || typeof m !== 'object') return;
-    if (m.__genesis === 'preview:error') out.errors.push(m.message);
-    if (m.__genesis !== 'hl:request') return;
-    fetch('/hl', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: m.op, params: m.params }) })
-      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); })
-      .then(function (x) {
-        out.calls.push({ op: m.op, ok: x.ok, code: x.ok ? undefined : x.b && x.b.error && x.b.error.code });
-        window.postMessage(x.ok ? { __genesis: 'hl:response', id: m.id, ok: true, data: x.b.data } : { __genesis: 'hl:response', id: m.id, ok: false, error: x.b && x.b.error }, '*');
+  window.addEventListener('error', function (event) { out.errors.push(String(event.message || event.type) + (event.filename ? ' @' + event.filename.split('/').pop() + ':' + event.lineno : '')); }, true);
+  window.addEventListener('unhandledrejection', function (event) { var reason = event.reason; out.errors.push('unhandled: ' + ((reason && (reason.message || String(reason))) || 'rejection')); });
+  document.addEventListener('securitypolicyviolation', function (event) { out.violations.push(event.violatedDirective + ' ' + event.blockedURI); });
+  window.addEventListener('message', function (event) {
+    var message = event.data;
+    if (!message || typeof message !== 'object') return;
+    if (message.__genesis === 'preview:error') out.errors.push(message.message);
+    if (message.__genesis !== 'hl:request') return;
+    fetch('/hl', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: message.op, params: message.params }) })
+      .then(function (response) { return response.json().then(function (body) { return { ok: response.ok, body: body }; }); })
+      .then(function (reply) {
+        out.calls.push({ op: message.op, ok: reply.ok, code: reply.ok ? undefined : reply.body && reply.body.error && reply.body.error.code });
+        window.postMessage(reply.ok ? { __genesis: 'hl:response', id: message.id, ok: true, data: reply.body.data } : { __genesis: 'hl:response', id: message.id, ok: false, error: reply.body && reply.body.error }, '*');
       });
   });
   window.addEventListener('load', function () {
@@ -44,11 +44,11 @@ const HARNESS = String.raw`<script>
 </script>`
 
 export async function renderCheck(html: string, cookie: string, hlFail?: string): Promise<RenderResult> {
-  const page = html.replace(/<head[^>]*>/i, (m) => `${m}\n${HARNESS}`)
-  let resolve!: (r: RenderResult) => void
-  const result = new Promise<RenderResult>((r) => (resolve = r))
+  const page = html.replace(/<head[^>]*>/i, (headTag) => `${headTag}\n${HARNESS}`)
+  let resolve!: (renderResult: RenderResult) => void
+  const result = new Promise<RenderResult>((resolveResult) => (resolve = resolveResult))
   const server = createServer(async (req, res) => {
-    const body = await new Promise<string>((r) => { let s = ''; req.on('data', (c) => (s += c)); req.on('end', () => r(s)) })
+    const body = await new Promise<string>((resolveBody) => { let collected = ''; req.on('data', (chunk) => (collected += chunk)); req.on('end', () => resolveBody(collected)) })
     if (req.url === '/hl' && hlFail) {
       // Negative case: HighLevel is down. The app should show its error state, not crash.
       res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: { code: hlFail, message: 'HighLevel is having trouble right now.', retryable: true } }))
@@ -62,11 +62,11 @@ export async function renderCheck(html: string, cookie: string, hlFail?: string)
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': PREVIEW_CSP }).end(page)
     }
   })
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+  await new Promise<void>((onListening) => server.listen(0, '127.0.0.1', onListening))
   const port = (server.address() as { port: number }).port
   const profile = mkdtempSync(join(tmpdir(), 'genesis-eval-'))
   const chrome = spawn(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`, `http://127.0.0.1:${port}/`], { stdio: 'ignore' })
-  const timeout = new Promise<RenderResult>((r) => setTimeout(() => r({ errors: ['render timed out'], calls: [], violations: [], textLength: 0 }), RENDER_WAIT_MS + 20_000))
+  const timeout = new Promise<RenderResult>((resolveTimeout) => setTimeout(() => resolveTimeout({ errors: ['render timed out'], calls: [], violations: [], textLength: 0 }), RENDER_WAIT_MS + 20_000))
   try {
     return await Promise.race([result, timeout])
   } finally {

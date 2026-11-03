@@ -41,10 +41,10 @@ const EDIT_CLOSE = "</edit>";
 const MAX_TAG_LENGTH = 300;
 
 /** Length of the longest suffix of `s` that is a prefix of `tag`. */
-function partialTagSuffix(s: string, tag: string): number {
-  const max = Math.min(s.length, tag.length - 1);
+function partialTagSuffix(text: string, tag: string): number {
+  const max = Math.min(text.length, tag.length - 1);
   for (let len = max; len > 0; len--) {
-    if (tag.startsWith(s.slice(s.length - len))) return len;
+    if (tag.startsWith(text.slice(text.length - len))) return len;
   }
   return 0;
 }
@@ -144,7 +144,7 @@ export class FileStreamParser {
     } else {
       this.result.deleted.add(path);
       this.result.completed.delete(path);
-      this.result.edits = this.result.edits.filter((e) => e.path !== path);
+      this.result.edits = this.result.edits.filter((edit) => edit.path !== path);
       events.push({ type: "file_delete", path });
     }
     return true;
@@ -187,7 +187,7 @@ export class FileStreamParser {
       this.result.completed.set(path, content);
       this.result.deleted.delete(path);
       // A full rewrite supersedes earlier edits to the same file.
-      this.result.edits = this.result.edits.filter((e) => e.path !== path);
+      this.result.edits = this.result.edits.filter((edit) => edit.path !== path);
       events.push({ type: "file_end", path, content });
     }
     this.currentPath = null;

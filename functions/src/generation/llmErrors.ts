@@ -5,13 +5,13 @@ import type { LlmResult } from "./llm";
 export type GenerationFailure = { code: string; message: string; retryable: boolean };
 
 /** Sums token usage across the main call and any repair calls. */
-export function addUsage(a: LlmResult["usage"], b: LlmResult["usage"]): LlmResult["usage"] {
-  if (!a || !b) return a ?? b;
+export function addUsage(first: LlmResult["usage"], second: LlmResult["usage"]): LlmResult["usage"] {
+  if (!first || !second) return first ?? second;
   return {
-    inputTokens: a.inputTokens + b.inputTokens,
-    outputTokens: a.outputTokens + b.outputTokens,
-    cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
-    cacheCreationTokens: a.cacheCreationTokens + b.cacheCreationTokens,
+    inputTokens: first.inputTokens + second.inputTokens,
+    outputTokens: first.outputTokens + second.outputTokens,
+    cacheReadTokens: first.cacheReadTokens + second.cacheReadTokens,
+    cacheCreationTokens: first.cacheCreationTokens + second.cacheCreationTokens,
   };
 }
 

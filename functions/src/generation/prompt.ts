@@ -92,6 +92,9 @@ export interface ProjectContext {
   prompt: string;
 }
 
+/** Output cap for one generation call (both providers); a full app is ~8–20k tokens. */
+export const MAX_OUTPUT_TOKENS = 32_000;
+
 /** Budget for project files sent back to the model on iterative requests. */
 const FILE_CONTEXT_CHAR_BUDGET = 160_000;
 const HISTORY_MESSAGES = 6;
@@ -101,11 +104,11 @@ export function buildMessages(ctx: ProjectContext): { messages: Anthropic.Messag
 
   // Prior turns give the model the conversational "why" behind the current code.
   // The API requires strict user/assistant alternation, starting with user.
-  for (const m of ctx.history.slice(-HISTORY_MESSAGES)) {
+  for (const message of ctx.history.slice(-HISTORY_MESSAGES)) {
     const last = messages[messages.length - 1];
-    if (!last && m.role === "assistant") continue;
-    if (last && last.role === m.role) last.content = `${last.content}\n\n${m.content}`;
-    else messages.push({ role: m.role, content: m.content });
+    if (!last && message.role === "assistant") continue;
+    if (last && last.role === message.role) last.content = `${last.content}\n\n${message.content}`;
+    else messages.push({ role: message.role, content: message.content });
   }
 
   const omittedFiles: string[] = [];

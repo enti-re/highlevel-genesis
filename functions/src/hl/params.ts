@@ -4,22 +4,25 @@ import type { Params } from "./types";
 /** Param validation for operations: ids are interpolated into URL paths, so they are checked strictly. */
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const DEFAULT_MAX_CHARS = 200;
+const MAX_TAGS = 20;
+const MAX_FIELD_CHARS = 300;
 
 export function id(params: Params, key: string): string {
-  const v = params[key];
-  if (typeof v !== "string" || !ID_RE.test(v)) throw new HttpError(400, "HL_BAD_PARAMS", `"${key}" must be a valid id`);
-  return v;
+  const value = params[key];
+  if (typeof value !== "string" || !ID_RE.test(value)) throw new HttpError(400, "HL_BAD_PARAMS", `"${key}" must be a valid id`);
+  return value;
 }
-export function optStr(params: Params, key: string, max = 200): string | undefined {
-  const v = params[key];
-  if (v === undefined || v === null || v === "") return undefined;
-  if (typeof v !== "string") throw new HttpError(400, "HL_BAD_PARAMS", `"${key}" must be a string`);
-  return v.slice(0, max);
+export function optStr(params: Params, key: string, max = DEFAULT_MAX_CHARS): string | undefined {
+  const value = params[key];
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") throw new HttpError(400, "HL_BAD_PARAMS", `"${key}" must be a string`);
+  return value.slice(0, max);
 }
 export function int(params: Params, key: string, min: number, max: number, fallback: number): number {
-  const v = Number(params[key] ?? fallback);
-  if (!Number.isFinite(v)) return fallback;
-  return Math.min(max, Math.max(min, Math.floor(v)));
+  const value = Number(params[key] ?? fallback);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(value)));
 }
 /** Accepts ms epoch, ISO strings or Date-like values; returns ms epoch. */
 export function time(params: Params, key: string, fallback?: number): number {
@@ -55,13 +58,13 @@ export function contactBody(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== "object") throw new HttpError(400, "HL_BAD_PARAMS", '"contact" must be an object');
   const body: Record<string, unknown> = {};
   for (const field of CONTACT_WRITE_FIELDS) {
-    const v = (input as Record<string, unknown>)[field];
-    if (v === undefined) continue;
+    const value = (input as Record<string, unknown>)[field];
+    if (value === undefined) continue;
     if (field === "tags") {
-      if (!Array.isArray(v)) throw new HttpError(400, "HL_BAD_PARAMS", '"tags" must be an array of strings');
-      body.tags = v.map(String).slice(0, 20);
+      if (!Array.isArray(value)) throw new HttpError(400, "HL_BAD_PARAMS", '"tags" must be an array of strings');
+      body.tags = value.map(String).slice(0, MAX_TAGS);
     } else {
-      body[field] = String(v).slice(0, 300);
+      body[field] = String(value).slice(0, MAX_FIELD_CHARS);
     }
   }
   return body;

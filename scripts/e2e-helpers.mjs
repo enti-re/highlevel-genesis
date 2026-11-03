@@ -18,8 +18,8 @@ export async function signUp(email) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password: 'password123', returnSecureToken: true }),
   })
-  const d = await res.json()
-  return { token: d.idToken, uid: d.localId }
+  const account = await res.json()
+  return { token: account.idToken, uid: account.localId }
 }
 
 export const api = (token, path, body, method = body ? 'POST' : 'GET') =>
@@ -45,7 +45,7 @@ export const fsCreate = (token, collection, fields) =>
     body: JSON.stringify({ fields }),
   })
 export const fsPatch = (token, path, fields, mask) =>
-  fetch(`${FS}/${path}?${mask.map((m) => `updateMask.fieldPaths=${m}`).join('&')}`, {
+  fetch(`${FS}/${path}?${mask.map((field) => `updateMask.fieldPaths=${field}`).join('&')}`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields }),
@@ -70,9 +70,9 @@ export async function generate(token, projectId, prompt, { onEvent, abortAfterEv
       const ev = raw.match(/^event: (.*)$/m)?.[1]
       const data = raw.match(/^data: (.*)$/m)?.[1]
       if (!ev) continue
-      const e = { event: ev, data: JSON.parse(data) }
-      events.push(e)
-      await onEvent?.(e, events)
+      const sseEvent = { event: ev, data: JSON.parse(data) }
+      events.push(sseEvent)
+      await onEvent?.(sseEvent, events)
       if (abortAfterEvents && events.length >= abortAfterEvents) {
         await reader.cancel()
         return { status: 200, events, aborted: true }
@@ -82,4 +82,4 @@ export async function generate(token, projectId, prompt, { onEvent, abortAfterEv
   return { status: 200, events }
 }
 
-export const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))

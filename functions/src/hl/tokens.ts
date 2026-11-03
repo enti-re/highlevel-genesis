@@ -23,6 +23,11 @@ export const HL_SCOPES = [
 
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 const LEASE_MS = 20_000;
+const TOKEN_REQUEST_TIMEOUT_MS = 15_000;
+/** While another request holds the refresh lease, wait with a growing pause, then re-read. */
+const REFRESH_WAIT_ATTEMPTS = 8;
+const REFRESH_WAIT_BASE_MS = 500;
+const REFRESH_WAIT_STEP_MS = 250;
 
 export interface HlConnection {
   accessToken: string;
@@ -68,7 +73,7 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
       redirect_uri: oauthRedirectUri(),
       ...params,
     }),
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
   });
   const body = (await res.json().catch(() => ({}))) as any;
   if (!res.ok) {
@@ -88,23 +93,23 @@ export async function exchangeCode(code: string): Promise<TokenResponse> {
   return tokenRequest({ grant_type: "authorization_code", code });
 }
 
-export async function saveConnection(uid: string, t: TokenResponse, locationName: string | null) {
-  if (!t.locationId) {
+export async function saveConnection(uid: string, tokens: TokenResponse, locationName: string | null) {
+  if (!tokens.locationId) {
     throw new HttpError(400, "HL_NEEDS_LOCATION", "Please choose a sub-account (location) when connecting HighLevel.");
   }
   const batch = getFirestore().batch();
   batch.set(connectionRef(uid), {
-    accessToken: t.access_token,
-    refreshToken: t.refresh_token,
-    expiresAt: Date.now() + t.expires_in * 1000,
-    locationId: t.locationId,
-    companyId: t.companyId ?? null,
-    scope: t.scope ?? "",
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token,
+    expiresAt: Date.now() + tokens.expires_in * 1000,
+    locationId: tokens.locationId,
+    companyId: tokens.companyId ?? null,
+    scope: tokens.scope ?? "",
     refreshLeaseUntil: 0,
   } satisfies HlConnection);
   batch.set(
     userRef(uid),
-    { hl: { status: "connected", locationId: t.locationId, locationName, connectedAt: FieldValue.serverTimestamp() } },
+    { hl: { status: "connected", locationId: tokens.locationId, locationName, connectedAt: FieldValue.serverTimestamp() } },
     { merge: true },
   );
   await batch.commit();
@@ -117,7 +122,7 @@ export async function markDisconnected(uid: string, status: "disconnected" | "ex
   await batch.commit();
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Returns a usable access token. `staleToken` is a token HighLevel just
@@ -127,39 +132,40 @@ export async function getAccessToken(uid: string, staleToken?: string): Promise<
   const ref = connectionRef(uid);
   const db = getFirestore();
 
-  for (let attempt = 0; attempt < 8; attempt++) {
+  for (let attempt = 0; attempt < REFRESH_WAIT_ATTEMPTS; attempt++) {
     const snap = await ref.get();
     if (!snap.exists) throw new HttpError(409, "HL_NOT_CONNECTED", "Connect your HighLevel account to load data.");
-    const conn = snap.data() as HlConnection;
-    const isUsable = (c: HlConnection) => c.accessToken !== staleToken && c.expiresAt - Date.now() > REFRESH_MARGIN_MS;
-    if (isUsable(conn)) return { token: conn.accessToken, locationId: conn.locationId };
+    const current = snap.data() as HlConnection;
+    const isUsable = (connection: HlConnection) =>
+      connection.accessToken !== staleToken && connection.expiresAt - Date.now() > REFRESH_MARGIN_MS;
+    if (isUsable(current)) return { token: current.accessToken, locationId: current.locationId };
 
     const lease = await db.runTransaction(async (tx) => {
-      const s = await tx.get(ref);
-      const c = s.data() as HlConnection | undefined;
-      if (!c) return "gone" as const;
-      if (isUsable(c)) return "fresh" as const;
-      if ((c.refreshLeaseUntil ?? 0) > Date.now()) return "busy" as const;
+      const txSnap = await tx.get(ref);
+      const latest = txSnap.data() as HlConnection | undefined;
+      if (!latest) return "gone" as const;
+      if (isUsable(latest)) return "fresh" as const;
+      if ((latest.refreshLeaseUntil ?? 0) > Date.now()) return "busy" as const;
       tx.update(ref, { refreshLeaseUntil: Date.now() + LEASE_MS });
-      return { refreshToken: c.refreshToken };
+      return { refreshToken: latest.refreshToken };
     });
 
     if (lease === "gone") continue;
     if (lease === "fresh") continue;
     if (lease === "busy") {
-      await sleep(500 + attempt * 250);
+      await sleep(REFRESH_WAIT_BASE_MS + attempt * REFRESH_WAIT_STEP_MS);
       continue;
     }
 
     try {
-      const t = await tokenRequest({ grant_type: "refresh_token", refresh_token: lease.refreshToken });
+      const refreshed = await tokenRequest({ grant_type: "refresh_token", refresh_token: lease.refreshToken });
       await ref.update({
-        accessToken: t.access_token,
-        refreshToken: t.refresh_token,
-        expiresAt: Date.now() + t.expires_in * 1000,
+        accessToken: refreshed.access_token,
+        refreshToken: refreshed.refresh_token,
+        expiresAt: Date.now() + refreshed.expires_in * 1000,
         refreshLeaseUntil: 0,
       });
-      return { token: t.access_token, locationId: conn.locationId };
+      return { token: refreshed.access_token, locationId: current.locationId };
     } catch (err) {
       if (err instanceof HttpError && err.code === "HL_RECONNECT") {
         await markDisconnected(uid, "expired");

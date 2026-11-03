@@ -27,16 +27,20 @@ const selected = ref<string | null>(null)
 /** Unsaved manual edits, keyed by path. */
 const drafts = reactive(new Map<string, string>())
 const saving = ref(false)
+/** File tree indentation: base padding plus a step per folder level. */
+const TREE_INDENT_PX = 12
+const TREE_DEPTH_INDENT_PX = 10
+const EDITOR_FONT_SIZE = 13
 
-const saved = computed(() => new Map(props.files.map((f) => [f.path, f])))
+const saved = computed(() => new Map(props.files.map((file) => [file.path, file])))
 const allPaths = computed(() => {
-  const paths = new Set(props.files.map((f) => f.path))
-  for (const p of props.streamingFiles.keys()) paths.add(p)
+  const paths = new Set(props.files.map((file) => file.path))
+  for (const streamingPath of props.streamingFiles.keys()) paths.add(streamingPath)
   return [...paths].sort((a, b) => a.localeCompare(b))
 })
 const isDirty = (path: string) => drafts.has(path) && drafts.get(path) !== saved.value.get(path)?.content
 const dirtyPaths = computed(() => [...drafts.keys()].filter(isDirty))
-watch(dirtyPaths, (d) => emit('update:dirtyCount', d.length), { immediate: true })
+watch(dirtyPaths, (dirty) => emit('update:dirtyCount', dirty.length), { immediate: true })
 
 /** While streaming, the editor shows the live buffer; otherwise the draft or saved content. */
 const content = computed(() => {
@@ -52,20 +56,20 @@ function open(path: string) {
   selected.value = path
 }
 function close(path: string) {
-  openTabs.value = openTabs.value.filter((p) => p !== path)
+  openTabs.value = openTabs.value.filter((tab) => tab !== path)
   if (selected.value === path) selected.value = openTabs.value.at(-1) ?? null
 }
 
 // Follow the file the AI is currently writing.
 watch(
   () => props.activeStreamPath,
-  (p) => p && open(p),
+  (streamPath) => streamPath && open(streamPath),
 )
 // Open index.html (or the first file) when a project loads; drop tabs for deleted files.
 watch(
   allPaths,
   (paths) => {
-    openTabs.value = openTabs.value.filter((p) => paths.includes(p))
+    openTabs.value = openTabs.value.filter((tab) => paths.includes(tab))
     if (selected.value && !paths.includes(selected.value)) selected.value = openTabs.value.at(-1) ?? null
     if (!selected.value && paths.length) open(paths.includes('index.html') ? 'index.html' : paths[0])
   },
@@ -81,9 +85,9 @@ function onChange(value: string | undefined) {
 
 // Monaco models are global, keyed by URI: prefix with the project id so projects never share one.
 const modelPath = computed(() => selected.value && `${props.projectId}/${selected.value}`)
-type MonacoEditor = { getValue(): string; setValue(v: string): void }
+type MonacoEditor = { getValue(): string; setValue(value: string): void }
 const editor = shallowRef<MonacoEditor | null>(null)
-const onMount = (e: MonacoEditor) => (editor.value = e)
+const onMount = (mounted: MonacoEditor) => (editor.value = mounted)
 // The wrapper reuses an existing model on tab switch, so content changed while hidden must be pushed in.
 watch([modelPath, content], async () => {
   await nextTick()
@@ -127,9 +131,9 @@ function language(path: string | null) {
   )
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-    e.preventDefault()
+function onKeydown(event: KeyboardEvent) {
+  if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+    event.preventDefault()
     void save()
   }
 }
@@ -137,7 +141,7 @@ function onKeydown(e: KeyboardEvent) {
 const editorOptions = computed(() => ({
   readOnly: readOnly.value,
   minimap: { enabled: false },
-  fontSize: 13,
+  fontSize: EDITOR_FONT_SIZE,
   automaticLayout: true,
   scrollBeyondLastLine: false,
   wordWrap: 'on' as const,
@@ -152,22 +156,25 @@ const editorOptions = computed(() => ({
       <ScrollArea class="h-[calc(100%-2rem)]">
         <p v-if="!allPaths.length" class="px-3 text-xs text-muted-foreground">No files yet.</p>
         <button
-          v-for="p in allPaths"
-          :key="p"
+          v-for="filePath in allPaths"
+          :key="filePath"
           :class="
             cn(
               'flex w-full items-center gap-1.5 truncate px-3 py-1 text-left font-mono text-xs hover:bg-muted',
-              selected === p && 'bg-muted font-medium',
+              selected === filePath && 'bg-muted font-medium',
             )
           "
-          :style="{ paddingLeft: `${12 + (p.split('/').length - 1) * 10}px` }"
-          :title="p"
-          @click="open(p)"
+          :style="{ paddingLeft: `${TREE_INDENT_PX + (filePath.split('/').length - 1) * TREE_DEPTH_INDENT_PX}px` }"
+          :title="filePath"
+          @click="open(filePath)"
         >
-          <Loader2Icon v-if="streaming && streamingFiles.has(p) && !completedPaths.has(p)" class="size-3 shrink-0 animate-spin" />
+          <Loader2Icon
+            v-if="streaming && streamingFiles.has(filePath) && !completedPaths.has(filePath)"
+            class="size-3 shrink-0 animate-spin"
+          />
           <FileCodeIcon v-else class="size-3 shrink-0 text-muted-foreground" />
-          <span class="truncate">{{ p.split('/').pop() }}</span>
-          <span v-if="isDirty(p)" class="ml-auto size-1.5 shrink-0 rounded-full bg-amber-500" aria-label="unsaved" />
+          <span class="truncate">{{ filePath.split('/').pop() }}</span>
+          <span v-if="isDirty(filePath)" class="ml-auto size-1.5 shrink-0 rounded-full bg-amber-500" aria-label="unsaved" />
         </button>
       </ScrollArea>
     </div>
@@ -176,18 +183,18 @@ const editorOptions = computed(() => ({
       <div class="flex h-9 items-center border-b">
         <div class="flex min-w-0 flex-1 overflow-x-auto">
           <div
-            v-for="p in openTabs"
-            :key="p"
+            v-for="tab in openTabs"
+            :key="tab"
             :class="
               cn(
                 'group flex shrink-0 cursor-pointer items-center gap-1 border-r px-3 font-mono text-xs',
-                selected === p ? 'bg-background' : 'bg-muted/40 text-muted-foreground',
+                selected === tab ? 'bg-background' : 'bg-muted/40 text-muted-foreground',
               )
             "
-            @click="selected = p"
+            @click="selected = tab"
           >
-            {{ p }}<span v-if="isDirty(p)" class="text-amber-600">•</span>
-            <button class="rounded p-0.5 opacity-50 hover:bg-muted hover:opacity-100" aria-label="Close tab" @click.stop="close(p)">
+            {{ tab }}<span v-if="isDirty(tab)" class="text-amber-600">•</span>
+            <button class="rounded p-0.5 opacity-50 hover:bg-muted hover:opacity-100" aria-label="Close tab" @click.stop="close(tab)">
               <XIcon class="size-3" />
             </button>
           </div>

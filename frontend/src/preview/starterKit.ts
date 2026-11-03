@@ -68,7 +68,7 @@ const THEME_CSS = `
 /** `window.genesis`: resolves Vue lazily so it always uses the single loaded Vue instance. */
 const HELPERS_JS = String.raw`
 (function () {
-  var V = function () { return window.Vue; };
+  var getVue = function () { return window.Vue; };
   var MESSAGES = {
     HL_NOT_CONNECTED: 'Connect HighLevel from the Genesis dashboard to see your data.',
     HL_RECONNECT: 'Your HighLevel connection expired. Reconnect it from the Genesis dashboard.',
@@ -79,21 +79,21 @@ const HELPERS_JS = String.raw`
     HL_NOT_FOUND: 'That record was not found in HighLevel.'
   };
   function toPascal(name) {
-    return String(name || '').split(/[-_\s]+/).map(function (p) { return p.charAt(0).toUpperCase() + p.slice(1); }).join('');
+    return String(name || '').split(/[-_\s]+/).map(function (word) { return word.charAt(0).toUpperCase() + word.slice(1); }).join('');
   }
   var GIcon = {
     name: 'GIcon',
     props: { name: { type: String, required: true }, size: { type: [Number, String], default: 16 }, strokeWidth: { type: [Number, String], default: 2 } },
     setup: function (props) {
       return function () {
-        var h = V().h;
+        var createVNode = getVue().h;
         var icons = (window.lucide && window.lucide.icons) || {};
         var node = icons[toPascal(props.name)] || icons.CircleHelp || [];
-        return h('svg', {
+        return createVNode('svg', {
           xmlns: 'http://www.w3.org/2000/svg', width: props.size, height: props.size, viewBox: '0 0 24 24',
           fill: 'none', stroke: 'currentColor', 'stroke-width': props.strokeWidth,
           'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true'
-        }, node.map(function (n) { return h(n[0], n[1]); }));
+        }, node.map(function (child) { return createVNode(child[0], child[1]); }));
       };
     }
   };
@@ -101,14 +101,14 @@ const HELPERS_JS = String.raw`
     install: function (app) { app.component('GIcon', GIcon); },
     /** Wraps an hl call: { data, loading, error, reload }. Stale responses (e.g. fast typing) are dropped. */
     useHl: function (loader, opts) {
-      var ref = V().ref;
+      var ref = getVue().ref;
       var data = ref(null), loading = ref(false), error = ref(null), seq = 0;
       function reload() {
         var id = ++seq, args = arguments;
         loading.value = true; error.value = null;
         return Promise.resolve().then(function () { return loader.apply(null, args); }).then(
-          function (r) { if (id === seq) { data.value = r; loading.value = false; } return r; },
-          function (e) { if (id === seq) { error.value = e; loading.value = false; } }
+          function (result) { if (id === seq) { data.value = result; loading.value = false; } return result; },
+          function (failure) { if (id === seq) { error.value = failure; loading.value = false; } }
         );
       }
       if (!opts || opts.immediate !== false) reload();
@@ -117,18 +117,18 @@ const HELPERS_JS = String.raw`
     errorText: function (err) {
       return (err && MESSAGES[err.code]) || (err && err.message) || 'Something went wrong.';
     },
-    formatDate: function (d) {
-      if (!d) return '-';
-      var x = new Date(d);
-      return isNaN(x) ? '-' : x.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    formatDate: function (value) {
+      if (!value) return '-';
+      var date = new Date(value);
+      return isNaN(date) ? '-' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     },
-    formatDateTime: function (d) {
-      if (!d) return '-';
-      var x = new Date(d);
-      return isNaN(x) ? '-' : x.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    formatDateTime: function (value) {
+      if (!value) return '-';
+      var date = new Date(value);
+      return isNaN(date) ? '-' : date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     },
     initials: function (name) {
-      return String(name || '?').trim().split(/\s+/).slice(0, 2).map(function (p) { return p.charAt(0).toUpperCase(); }).join('') || '?';
+      return String(name || '?').trim().split(/\s+/).slice(0, 2).map(function (word) { return word.charAt(0).toUpperCase(); }).join('') || '?';
     }
   });
 })();

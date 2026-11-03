@@ -36,10 +36,13 @@ function fixWithAi() {
 const preview = computed(() => buildPreviewHtml(props.fileMap))
 /** Remount per render so each app starts from a fresh /preview.html. */
 const frameKey = computed(() => `${reloadKey.value}:${hash(preview.value.html)}`)
-function hash(s: string) {
-  let h = 5381
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
-  return (h >>> 0).toString(36)
+/** djb2 string hash: a cheap key that changes whenever the built HTML does. */
+const DJB2_SEED = 5381
+const BASE36 = 36
+function hash(text: string) {
+  let value = DJB2_SEED
+  for (let i = 0; i < text.length; i++) value = ((value << 5) + value + text.charCodeAt(i)) | 0
+  return (value >>> 0).toString(BASE36)
 }
 watch(
   () => preview.value.html,
@@ -59,7 +62,7 @@ function reload() {
   clear()
   reloadKey.value++
 }
-const failedCalls = computed(() => calls.value.filter((c) => !c.ok).length)
+const failedCalls = computed(() => calls.value.filter((call) => !call.ok).length)
 </script>
 
 <template>
@@ -86,9 +89,9 @@ const failedCalls = computed(() => calls.value.filter((c) => !c.ok).length)
             </SheetHeader>
             <ScrollArea class="h-[calc(100vh-8rem)] px-4">
               <p v-if="!calls.length" class="text-sm text-muted-foreground">No calls yet.</p>
-              <div v-for="c in calls" :key="c.id" class="flex items-center justify-between border-b py-2 font-mono text-xs">
-                <span>{{ c.op }}</span>
-                <span :class="c.ok ? 'text-green-600' : 'text-destructive'">{{ c.ok ? 'ok' : c.code }} · {{ c.ms }}ms</span>
+              <div v-for="call in calls" :key="call.id" class="flex items-center justify-between border-b py-2 font-mono text-xs">
+                <span>{{ call.op }}</span>
+                <span :class="call.ok ? 'text-green-600' : 'text-destructive'">{{ call.ok ? 'ok' : call.code }} · {{ call.ms }}ms</span>
               </div>
             </ScrollArea>
           </SheetContent>

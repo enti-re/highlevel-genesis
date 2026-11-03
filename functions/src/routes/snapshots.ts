@@ -22,7 +22,9 @@ export async function restoreHandler(req: Request, res: Response) {
   const snap = await ref.collection("snapshots").doc(snapshotId).get();
   if (!snap.exists) throw new HttpError(404, "NOT_FOUND", "Snapshot not found.");
 
-  const target = new Map<string, string>((snap.get("files") as { path: string; content: string }[]).map((f) => [f.path, f.content]));
+  const target = new Map<string, string>(
+    (snap.get("files") as { path: string; content: string }[]).map((file) => [file.path, file.content]),
+  );
   const current = await loadFiles(ref);
 
   const batch = db().batch();

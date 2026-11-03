@@ -1,33 +1,33 @@
 /** Normalizers: HighLevel payloads -> the small, stable shapes documented to the model in generation/spec.ts. */
 
-export function normalizeContact(c: any) {
-  const firstName = c?.firstName ?? c?.firstNameRaw ?? "";
-  const lastName = c?.lastName ?? c?.lastNameRaw ?? "";
-  const name = c?.contactName ?? c?.name ?? [firstName, lastName].filter(Boolean).join(" ").trim();
+export function normalizeContact(contact: any) {
+  const firstName = contact?.firstName ?? contact?.firstNameRaw ?? "";
+  const lastName = contact?.lastName ?? contact?.lastNameRaw ?? "";
+  const name = contact?.contactName ?? contact?.name ?? [firstName, lastName].filter(Boolean).join(" ").trim();
   return {
-    id: c?.id,
-    name: name || c?.email || c?.phone || "Unnamed contact",
+    id: contact?.id,
+    name: name || contact?.email || contact?.phone || "Unnamed contact",
     firstName,
     lastName,
-    email: c?.email ?? null,
-    phone: c?.phone ?? null,
-    companyName: c?.companyName ?? null,
-    tags: Array.isArray(c?.tags) ? c.tags : [],
-    source: c?.source ?? null,
-    dateAdded: c?.dateAdded ?? null,
+    email: contact?.email ?? null,
+    phone: contact?.phone ?? null,
+    companyName: contact?.companyName ?? null,
+    tags: Array.isArray(contact?.tags) ? contact.tags : [],
+    source: contact?.source ?? null,
+    dateAdded: contact?.dateAdded ?? null,
   };
 }
 
-export function normalizeEvent(e: any) {
+export function normalizeEvent(event: any) {
   return {
-    id: e?.id,
-    title: e?.title ?? "Appointment",
-    calendarId: e?.calendarId ?? null,
-    contactId: e?.contactId ?? null,
-    startTime: e?.startTime ?? null,
-    endTime: e?.endTime ?? null,
-    status: e?.appointmentStatus ?? null,
-    address: e?.address ?? null,
-    notes: e?.notes ?? null,
+    id: event?.id,
+    title: event?.title ?? "Appointment",
+    calendarId: event?.calendarId ?? null,
+    contactId: event?.contactId ?? null,
+    startTime: event?.startTime ?? null,
+    endTime: event?.endTime ?? null,
+    status: event?.appointmentStatus ?? null,
+    address: event?.address ?? null,
+    notes: event?.notes ?? null,
   };
 }

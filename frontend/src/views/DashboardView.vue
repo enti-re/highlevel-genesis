@@ -19,6 +19,10 @@ import { db } from '@/lib/firebase'
 import { isGenerating } from '@/lib/lock'
 import type { Project } from '@/types'
 
+/** Same limits as firestore.rules (validName / description). */
+const MAX_NAME_CHARS = 80
+const MAX_DESCRIPTION_CHARS = 500
+
 const router = useRouter()
 const route = useRoute()
 const { user } = useAuth()
@@ -36,7 +40,7 @@ const deleting = ref(false)
 const unsubscribe = onSnapshot(
   query(collection(db, 'projects'), where('ownerId', '==', user.value!.uid), where('deleted', '==', false), orderBy('updatedAt', 'desc')),
   (snap) => {
-    projects.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Project)
+    projects.value = snap.docs.map((projectDoc) => ({ id: projectDoc.id, ...projectDoc.data() }) as Project)
     loading.value = false
   },
   (err) => {
@@ -81,8 +85,8 @@ async function createProject() {
   try {
     const ref = await addDoc(collection(db, 'projects'), {
       ownerId: user.value!.uid,
-      name: name.value.trim().slice(0, 80),
-      description: description.value.trim().slice(0, 500),
+      name: name.value.trim().slice(0, MAX_NAME_CHARS),
+      description: description.value.trim().slice(0, MAX_DESCRIPTION_CHARS),
       locationId: hl.value.locationId ?? null,
       deleted: false,
       activeGeneration: null,
@@ -120,7 +124,7 @@ async function logout() {
   await router.replace('/login')
 }
 
-const formatDate = (p: Project) => p.updatedAt?.toDate().toLocaleString() ?? 'Just now'
+const formatDate = (project: Project) => project.updatedAt?.toDate().toLocaleString() ?? 'Just now'
 </script>
 
 <template>
@@ -159,18 +163,18 @@ const formatDate = (p: Project) => p.updatedAt?.toDate().toLocaleString() ?? 'Ju
 
         <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Card
-            v-for="p in projects"
-            :key="p.id"
+            v-for="project in projects"
+            :key="project.id"
             class="cursor-pointer transition hover:border-primary/40 hover:shadow-sm"
-            @click="router.push(`/projects/${p.id}`)"
+            @click="router.push(`/projects/${project.id}`)"
           >
             <CardHeader>
-              <CardTitle class="truncate">{{ p.name }}</CardTitle>
-              <CardDescription class="line-clamp-2 min-h-10">{{ p.description || 'No description' }}</CardDescription>
+              <CardTitle class="truncate">{{ project.name }}</CardTitle>
+              <CardDescription class="line-clamp-2 min-h-10">{{ project.description || 'No description' }}</CardDescription>
             </CardHeader>
             <CardFooter class="justify-between text-xs text-muted-foreground">
-              <span>{{ isGenerating(p) ? 'Generating...' : `Updated ${formatDate(p)}` }}</span>
-              <Button variant="ghost" size="icon-sm" aria-label="Delete project" @click.stop="pendingDelete = p">
+              <span>{{ isGenerating(project) ? 'Generating...' : `Updated ${formatDate(project)}` }}</span>
+              <Button variant="ghost" size="icon-sm" aria-label="Delete project" @click.stop="pendingDelete = project">
                 <Trash2Icon />
               </Button>
             </CardFooter>
@@ -204,7 +208,7 @@ const formatDate = (p: Project) => p.updatedAt?.toDate().toLocaleString() ?? 'Ju
       </DialogContent>
     </Dialog>
 
-    <Dialog :open="!!pendingDelete" @update:open="(o: boolean) => !o && (pendingDelete = null)">
+    <Dialog :open="!!pendingDelete" @update:open="(open: boolean) => !open && (pendingDelete = null)">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete "{{ pendingDelete?.name }}"?</DialogTitle>

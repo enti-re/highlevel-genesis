@@ -10,6 +10,11 @@ import { cancelHandler, generateHandler } from "./routes/generate";
 import { authorizeUrlHandler, callHandler, completeOauthHandler, disconnectHandler, oauthCallbackHandler } from "./routes/hl";
 import { restoreHandler } from "./routes/snapshots";
 
+/** Above the 8-minute generation abort, so a timed-out generation still saves its partial work. */
+const FUNCTION_TIMEOUT_S = 540;
+/** Long-lived SSE streams share instances instead of scaling 1:1. */
+const REQUESTS_PER_INSTANCE = 40;
+
 initializeApp();
 setGlobalOptions({ region: "us-central1", maxInstances: 10 });
 
@@ -49,9 +54,9 @@ app.use(errorMiddleware);
 /** One 2nd-gen function (Cloud Run, so responses can stream): one cold start, one OAuth redirect URL. */
 export const api = onRequest(
   {
-    timeoutSeconds: 540,
+    timeoutSeconds: FUNCTION_TIMEOUT_S,
     memory: "512MiB",
-    concurrency: 40,
+    concurrency: REQUESTS_PER_INSTANCE,
     secrets: [ANTHROPIC_API_KEY, HL_CLIENT_SECRET, GEMINI_API_KEY],
     invoker: "public",
   },

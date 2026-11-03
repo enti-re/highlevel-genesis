@@ -25,9 +25,10 @@ const TAG = /<\/?(search|replace)>/;
 /** Strict: malformed tags reject the edit (it goes to repair) instead of dropping a block or writing tag markup into the file. */
 export function parseEditBody(body: string): EditBlock[] | { reason: string } {
   const blocks: EditBlock[] = [];
-  for (const m of body.matchAll(BLOCK)) {
-    if (TAG.test(m[1]) || TAG.test(m[2])) return { reason: `edit block ${blocks.length + 1} is malformed (nested or unclosed tags)` };
-    blocks.push({ search: m[1], replace: m[2] });
+  for (const match of body.matchAll(BLOCK)) {
+    if (TAG.test(match[1]) || TAG.test(match[2]))
+      return { reason: `edit block ${blocks.length + 1} is malformed (nested or unclosed tags)` };
+    blocks.push({ search: match[1], replace: match[2] });
   }
   if (body.replace(BLOCK, "").trim()) return { reason: "edit has text outside <search>/<replace> blocks (malformed tags)" };
   return blocks;
@@ -57,10 +58,10 @@ function replaceOnce(content: string, { search, replace }: EditBlock): string | 
 
   // 2. Models often drift on indentation/trailing spaces: match line-by-line on trimmed text.
   const lines = content.split("\n");
-  const wanted = search.split("\n").map((l) => l.trim());
+  const wanted = search.split("\n").map((line) => line.trim());
   const hits: number[] = [];
   for (let start = 0; start + wanted.length <= lines.length; start++) {
-    if (wanted.every((w, j) => lines[start + j].trim() === w)) hits.push(start);
+    if (wanted.every((wantedLine, offset) => lines[start + offset].trim() === wantedLine)) hits.push(start);
   }
   if (hits.length === 0) return { reason: "search text not found in the current file" };
   if (hits.length > 1) return { reason: "search text matches more than once" };

@@ -9,8 +9,8 @@ let readyPromise: Promise<void> | null = null
 /** Resolves once Firebase has restored (or ruled out) the persisted session. */
 export function authReady(): Promise<void> {
   readyPromise ??= new Promise((resolve) => {
-    onAuthStateChanged(auth, (u) => {
-      user.value = u
+    onAuthStateChanged(auth, (firebaseUser) => {
+      user.value = firebaseUser
       ready.value = true
       resolve()
     })

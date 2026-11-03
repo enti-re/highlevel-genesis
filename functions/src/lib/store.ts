@@ -33,16 +33,16 @@ export async function getOwnedProject(projectId: string, uid: string): Promise<{
 
 export async function loadFiles(ref: DocumentReference): Promise<Map<string, string>> {
   const snap = await ref.collection("files").get();
-  return new Map(snap.docs.map((d) => [d.get("path") as string, d.get("content") as string]));
+  return new Map(snap.docs.map((fileDoc) => [fileDoc.get("path") as string, fileDoc.get("content") as string]));
 }
 
 export async function loadHistory(ref: DocumentReference, limit: number) {
   const snap = await ref.collection("messages").orderBy("createdAt", "desc").limit(limit).get();
   return snap.docs
     .reverse()
-    .map((d) => d.data())
-    .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content as string }));
+    .map((messageDoc) => messageDoc.data())
+    .filter((message) => (message.role === "user" || message.role === "assistant") && typeof message.content === "string" && message.content.trim())
+    .map((message) => ({ role: message.role as "user" | "assistant", content: message.content as string }));
 }
 
 export const now = () => FieldValue.serverTimestamp();
@@ -58,9 +58,9 @@ export async function captureManualEdits(
 ): Promise<Timestamp> {
   const latest = await ref.collection("snapshots").orderBy("createdAt", "desc").limit(1).get();
   const last = new Map<string, string>(
-    ((latest.docs[0]?.get("files") ?? []) as { path: string; content: string }[]).map((f) => [f.path, f.content]),
+    ((latest.docs[0]?.get("files") ?? []) as { path: string; content: string }[]).map((file) => [file.path, file.content]),
   );
-  const differs = last.size !== current.size || [...current].some(([p, c]) => last.get(p) !== c);
+  const differs = last.size !== current.size || [...current].some(([filePath, fileContent]) => last.get(filePath) !== fileContent);
   const ts = Timestamp.now();
   if (differs && current.size > 0) {
     batch.set(ref.collection("snapshots").doc(), {

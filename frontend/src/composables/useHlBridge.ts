@@ -1,6 +1,10 @@
 import { onScopeDispose, ref, type Ref } from 'vue'
 import { ApiError, apiFetch } from '@/lib/api'
 
+/** Most recent preview errors and HighLevel calls kept for the panels. */
+const MAX_RUNTIME_ERRORS = 5
+const MAX_CALL_LOG = 30
+
 export interface HlCallLog {
   id: number
   op: string
@@ -21,7 +25,7 @@ export function useHlBridge(iframe: Ref<HTMLIFrameElement | null>) {
     if (!source || ev.source !== source) return
     const msg = ev.data
     if (msg?.__genesis === 'preview:error') {
-      runtimeErrors.value = [...runtimeErrors.value.slice(-4), String(msg.message)]
+      runtimeErrors.value = [...runtimeErrors.value.slice(-(MAX_RUNTIME_ERRORS - 1)), String(msg.message)]
       return
     }
     if (msg?.__genesis !== 'hl:request' || typeof msg.op !== 'string') return
@@ -38,12 +42,15 @@ export function useHlBridge(iframe: Ref<HTMLIFrameElement | null>) {
       log.ok = true
       reply = { ok: true, data }
     } catch (err) {
-      const e = err instanceof ApiError ? err : new ApiError(0, 'HL_ERROR', 'HighLevel request failed')
-      log.code = e.code
-      reply = { ok: false, error: { code: e.code, message: e.message, status: e.status, retryable: e.retryable } }
+      const apiError = err instanceof ApiError ? err : new ApiError(0, 'HL_ERROR', 'HighLevel request failed')
+      log.code = apiError.code
+      reply = {
+        ok: false,
+        error: { code: apiError.code, message: apiError.message, status: apiError.status, retryable: apiError.retryable },
+      }
     }
     log.ms = Math.round(performance.now() - started)
-    calls.value = [log, ...calls.value].slice(0, 30)
+    calls.value = [log, ...calls.value].slice(0, MAX_CALL_LOG)
     // The sandboxed iframe has an opaque ("null") origin, so '*' is the only valid target;
     // we post to the specific window that asked, and the payload carries no secrets.
     source.postMessage({ __genesis: 'hl:response', id: msg.id, ...reply }, '*')

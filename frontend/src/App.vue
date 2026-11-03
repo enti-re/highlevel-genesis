@@ -10,8 +10,8 @@ const route = useRoute()
 const router = useRouter()
 
 // Signed out anywhere (another tab, expired session): leave protected pages.
-watch(user, (u) => {
-  if (ready.value && !u && route.meta.requiresAuth) {
+watch(user, (signedInUser) => {
+  if (ready.value && !signedInUser && route.meta.requiresAuth) {
     void router.replace({ path: '/login', query: { redirect: route.fullPath } })
   }
 })

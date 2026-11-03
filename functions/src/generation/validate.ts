@@ -9,6 +9,7 @@ export const LIMITS = {
   maxFileBytes: 120_000,
   maxProjectBytes: 450_000, // keeps a full snapshot well under Firestore's 1 MiB doc limit
   maxPathDepth: 3,
+  maxPathChars: 120,
 };
 
 const ALLOWED_EXTENSIONS = new Set(["html", "js", "css", "json", "md", "svg", "txt"]);
@@ -16,11 +17,11 @@ const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export function validatePath(path: string): string | null {
   if (!path) return "empty path";
-  if (path.length > 120) return "path too long";
+  if (path.length > LIMITS.maxPathChars) return "path too long";
   if (path.startsWith("/") || path.includes("\\")) return "path must be relative";
   const segments = path.split("/");
   if (segments.length > LIMITS.maxPathDepth) return "path nested too deeply";
-  if (segments.some((s) => s === "." || s === ".." || !SEGMENT.test(s))) return "invalid path segment";
+  if (segments.some((segment) => segment === "." || segment === ".." || !SEGMENT.test(segment))) return "invalid path segment";
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
   if (!ALLOWED_EXTENSIONS.has(ext)) return `file type .${ext} is not supported in the preview`;
   return null;
@@ -28,8 +29,8 @@ export function validatePath(path: string): string | null {
 
 /** Models sometimes wrap file bodies in markdown fences despite instructions. */
 export function stripCodeFence(content: string): string {
-  const m = content.match(/^\s*```[\w-]*\r?\n([\s\S]*?)\r?\n```\s*$/);
-  return m ? m[1] : content;
+  const match = content.match(/^\s*```[\w-]*\r?\n([\s\S]*?)\r?\n```\s*$/);
+  return match ? match[1] : content;
 }
 
 /**

@@ -11,6 +11,10 @@ import { MOCK_LOCATION_ID } from "../hl/mock";
 import { buildAuthorizeUrl, exchangeCode, markDisconnected, saveConnection } from "../hl/tokens";
 
 const STATE_TTL_MS = 10 * 60 * 1000;
+const STATE_BYTES = 24;
+const STATE_FORMAT = new RegExp(`^[a-f0-9]{${STATE_BYTES * 2}}$`);
+const HL_CALLS_PER_MINUTE = 120;
+const MOCK_TOKEN_TTL_S = 24 * 60 * 60;
 
 /** GET /hl/authorize-url -> { url }  (state binds the callback to this user; CSRF protection) */
 export async function authorizeUrlHandler(req: Request, res: Response) {
@@ -18,13 +22,13 @@ export async function authorizeUrlHandler(req: Request, res: Response) {
   if (isMockHl()) {
     await saveConnection(
       user.uid,
-      { access_token: "mock", refresh_token: "mock", expires_in: 86400, locationId: MOCK_LOCATION_ID },
+      { access_token: "mock", refresh_token: "mock", expires_in: MOCK_TOKEN_TTL_S, locationId: MOCK_LOCATION_ID },
       "Demo Clinic (mock)",
     );
     res.json({ url: `${APP_URL.value()}/dashboard?hl=connected` });
     return;
   }
-  const state = randomBytes(24).toString("hex");
+  const state = randomBytes(STATE_BYTES).toString("hex");
   await db().collection("oauthStates").doc(state).set({ uid: user.uid, createdAt: Date.now() });
   res.json({ url: buildAuthorizeUrl(state) });
 }
@@ -55,7 +59,7 @@ export async function completeOauthHandler(req: Request, res: Response) {
   const user = await requireUser(req, { checkRevoked: true });
   const code = typeof req.body?.code === "string" ? req.body.code : "";
   const state = typeof req.body?.state === "string" ? req.body.state : "";
-  if (!code || !/^[a-f0-9]{48}$/.test(state)) throw new HttpError(400, "BAD_REQUEST", "Invalid connection request.");
+  if (!code || !STATE_FORMAT.test(state)) throw new HttpError(400, "BAD_REQUEST", "Invalid connection request.");
 
   // Single use: read and delete in one transaction so a state can't be redeemed twice.
   const stateRef = db().collection("oauthStates").doc(state);
@@ -97,7 +101,7 @@ export async function callHandler(req: Request, res: Response) {
   const user = await requireSession(req);
   const op = String(req.body?.op ?? "");
   const params = req.body?.params && typeof req.body.params === "object" ? req.body.params : {};
-  await enforceRateLimit(user.uid, "hl", 120, 60 * 1000);
+  await enforceRateLimit(user.uid, "hl", HL_CALLS_PER_MINUTE, 60 * 1000);
   const data = await callHl(user.uid, op, params);
   res.json({ data });
 }

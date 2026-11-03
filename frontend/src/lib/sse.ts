@@ -1,13 +1,16 @@
 import { ApiError, authHeader, toApiError } from './api'
 import { API_BASE_URL } from './firebase'
 
+const EVENT_PREFIX = 'event:'
+const DATA_PREFIX = 'data:'
+
 export interface SseEvent {
   event: string
   data: any
 }
 
 /** fetch-based SSE: EventSource can't POST or send an Authorization header. Rejects with STREAM_INTERRUPTED on a drop. */
-export async function postSse(path: string, body: unknown, onEvent: (e: SseEvent) => void, signal?: AbortSignal): Promise<void> {
+export async function postSse(path: string, body: unknown, onEvent: (event: SseEvent) => void, signal?: AbortSignal): Promise<void> {
   let res: Response
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
@@ -50,8 +53,8 @@ export function parseEvent(raw: string): SseEvent | null {
   const data: string[] = []
   for (const line of raw.split(/\r?\n/)) {
     if (!line || line.startsWith(':')) continue // comment / heartbeat
-    if (line.startsWith('event:')) event = line.slice(6).trim()
-    else if (line.startsWith('data:')) data.push(line.slice(5).trimStart())
+    if (line.startsWith(EVENT_PREFIX)) event = line.slice(EVENT_PREFIX.length).trim()
+    else if (line.startsWith(DATA_PREFIX)) data.push(line.slice(DATA_PREFIX.length).trimStart())
   }
   if (!data.length) return null
   try {

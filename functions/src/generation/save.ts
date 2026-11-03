@@ -52,9 +52,9 @@ export async function saveGeneration(input: SaveInput): Promise<void> {
         retryable: false,
       };
     }
-    const warnings = [...[...failures].map(([p, r]) => `Skipped a change to "${p}": ${r}.`), ...validation.warnings];
+    const warnings = [...[...failures].map(([path, reason]) => `Skipped a change to "${path}": ${reason}.`), ...validation.warnings];
     if (result.incomplete) warnings.push(`"${result.incomplete.path}" was cut off and was not saved.`);
-    for (const r of validation.rejected) warnings.push(`Skipped "${r.path}": ${r.reason}.`);
+    for (const rejection of validation.rejected) warnings.push(`Skipped "${rejection.path}": ${rejection.reason}.`);
 
     const changed = validation.accepted.size + validation.deletes.size;
     if (!failure && changed === 0 && failures.size > 0) {

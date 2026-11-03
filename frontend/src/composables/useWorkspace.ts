@@ -3,6 +3,10 @@ import { computed, onScopeDispose, ref } from 'vue'
 import { db } from '@/lib/firebase'
 import type { ChatMessage, Project, ProjectFile, Snapshot } from '@/types'
 
+/** Newest chat messages and versions loaded per project. */
+const MAX_MESSAGES = 200
+const MAX_SNAPSHOTS = 50
+
 /** Firestore listeners are the source of truth; SSE only drives the in-flight view, so a dropped stream recovers. */
 export function useWorkspace(projectId: string) {
   const project = ref<Project | null>(null)
@@ -13,8 +17,8 @@ export function useWorkspace(projectId: string) {
   const error = ref<string | null>(null)
 
   const projectRef = doc(db, 'projects', projectId)
-  const onError = (e: Error) => {
-    error.value = e.message.includes('permission') ? 'Project not found or you do not have access.' : e.message
+  const onError = (firestoreError: Error) => {
+    error.value = firestoreError.message.includes('permission') ? 'Project not found or you do not have access.' : firestoreError.message
     loaded.value = true
   }
 
@@ -33,28 +37,28 @@ export function useWorkspace(projectId: string) {
       collection(projectRef, 'files'),
       (snap) => {
         files.value = snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Omit<ProjectFile, 'id'>) }))
+          .map((fileDoc) => ({ id: fileDoc.id, ...(fileDoc.data() as Omit<ProjectFile, 'id'>) }))
           .sort((a, b) => a.path.localeCompare(b.path))
       },
       onError,
     ),
     onSnapshot(
-      query(collection(projectRef, 'messages'), orderBy('createdAt', 'asc'), limitToLast(200)),
+      query(collection(projectRef, 'messages'), orderBy('createdAt', 'asc'), limitToLast(MAX_MESSAGES)),
       (snap) => {
-        messages.value = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ChatMessage, 'id'>) }))
+        messages.value = snap.docs.map((messageDoc) => ({ id: messageDoc.id, ...(messageDoc.data() as Omit<ChatMessage, 'id'>) }))
       },
       onError,
     ),
     onSnapshot(
-      query(collection(projectRef, 'snapshots'), orderBy('createdAt', 'desc'), limit(50)),
+      query(collection(projectRef, 'snapshots'), orderBy('createdAt', 'desc'), limit(MAX_SNAPSHOTS)),
       (snap) => {
-        snapshots.value = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Snapshot, 'id'>) }))
+        snapshots.value = snap.docs.map((snapshotDoc) => ({ id: snapshotDoc.id, ...(snapshotDoc.data() as Omit<Snapshot, 'id'>) }))
       },
       onError,
     ),
   ]
-  onScopeDispose(() => unsubs.forEach((u) => u()))
+  onScopeDispose(() => unsubs.forEach((unsubscribe) => unsubscribe()))
 
-  const fileMap = computed(() => new Map(files.value.map((f) => [f.path, f.content])))
+  const fileMap = computed(() => new Map(files.value.map((file) => [file.path, file.content])))
   return { project, files, fileMap, messages, snapshots, loaded, error }
 }

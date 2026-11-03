@@ -19,13 +19,13 @@ export function useHlStatus() {
     effectScope(true).run(() =>
       watch(
         user,
-        (u) => {
+        (signedInUser) => {
           unsubscribe?.()
           loaded.value = false
           hl.value = {}
-          if (!u) return
+          if (!signedInUser) return
           unsubscribe = onSnapshot(
-            doc(db, 'users', u.uid),
+            doc(db, 'users', signedInUser.uid),
             (snap) => {
               hl.value = (snap.get('hl') as HlStatus) ?? {}
               loaded.value = true

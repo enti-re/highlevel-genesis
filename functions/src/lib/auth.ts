@@ -45,8 +45,8 @@ function assertSameSite(req: Request) {
 
 function readCookie(req: Request, name: string): string | null {
   for (const part of (req.headers.cookie ?? "").split(";")) {
-    const [k, ...v] = part.trim().split("=");
-    if (k === name) return decodeURIComponent(v.join("="));
+    const [cookieName, ...valueParts] = part.trim().split("=");
+    if (cookieName === name) return decodeURIComponent(valueParts.join("="));
   }
   return null;
 }

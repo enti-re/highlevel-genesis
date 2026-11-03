@@ -26,24 +26,26 @@ const contacts = [
 }));
 
 export async function mockFetch(req: HlRequest): Promise<any> {
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((resolve) => setTimeout(resolve, 150));
   if (req.path === "/contacts/search") {
-    const q = String(req.body?.query ?? "").toLowerCase();
-    const list = contacts.filter((c) => !q || `${c.firstName} ${c.lastName} ${c.email}`.toLowerCase().includes(q));
+    const query = String(req.body?.query ?? "").toLowerCase();
+    const list = contacts.filter(
+      (contact) => !query || `${contact.firstName} ${contact.lastName} ${contact.email}`.toLowerCase().includes(query),
+    );
     return { contacts: list, total: list.length };
   }
   if (req.path.startsWith("/contacts/")) {
-    const c = contacts.find((x) => req.path.endsWith(x.id)) ?? { id: "mockNew", ...(req.body ?? {}) };
-    return { contact: c };
+    const contact = contacts.find((candidate) => req.path.endsWith(candidate.id)) ?? { id: "mockNew", ...(req.body ?? {}) };
+    return { contact: contact };
   }
   if (req.path === "/calendars/") return { calendars: [{ id: "mockCal1", name: "Discovery Call", isActive: true }] };
   if (req.path === "/calendars/events") {
     return {
-      events: contacts.slice(0, 3).map((c, i) => ({
+      events: contacts.slice(0, 3).map((contact, i) => ({
         id: `mockEvent${i}`,
-        title: `Discovery call with ${c.firstName}`,
+        title: `Discovery call with ${contact.firstName}`,
         calendarId: "mockCal1",
-        contactId: c.id,
+        contactId: contact.id,
         appointmentStatus: "confirmed",
         startTime: new Date(Date.now() + (i + 1) * day).toISOString(),
         endTime: new Date(Date.now() + (i + 1) * day + 1800_000).toISOString(),
@@ -52,10 +54,10 @@ export async function mockFetch(req: HlRequest): Promise<any> {
   }
   if (req.path === "/conversations/search") {
     return {
-      conversations: contacts.slice(0, 4).map((c, i) => ({
+      conversations: contacts.slice(0, 4).map((contact, i) => ({
         id: `mockConv${i}`,
-        contactId: c.id,
-        fullName: `${c.firstName} ${c.lastName}`,
+        contactId: contact.id,
+        fullName: `${contact.firstName} ${contact.lastName}`,
         lastMessageBody: "Thanks, see you then!",
         lastMessageType: "TYPE_SMS",
         unreadCount: i % 2,

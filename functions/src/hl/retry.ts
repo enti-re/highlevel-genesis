@@ -21,17 +21,17 @@ export const isRepeatable = (req: HlRequest) => req.method === "GET" || req.path
 export type RetryableError = HttpError & { retryAfterMs?: number };
 
 export async function withRetry<T>(req: HlRequest, fn: () => Promise<T>, opts: RetryOptions = HL_RETRY): Promise<T> {
-  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const random = opts.random ?? Math.random;
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
     } catch (err) {
-      const e = err as RetryableError;
-      const transient = e instanceof HttpError && e.retryable;
+      const error = err as RetryableError;
+      const transient = error instanceof HttpError && error.retryable;
       if (!transient || !isRepeatable(req) || attempt >= opts.retries) throw err;
       const backoff = Math.min(opts.maxMs, opts.baseMs * 2 ** attempt) * random();
-      await sleep(Math.min(opts.maxMs, e.retryAfterMs ?? backoff));
+      await sleep(Math.min(opts.maxMs, error.retryAfterMs ?? backoff));
     }
   }
 }

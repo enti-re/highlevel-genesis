@@ -4,6 +4,11 @@ import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
 
 const env = import.meta.env
 export const USE_EMULATORS = env.VITE_USE_EMULATORS === 'true'
+/** Firebase emulator ports, matching firebase.json. */
+const EMULATOR_HOST = '127.0.0.1'
+const AUTH_EMULATOR_PORT = 9099
+const FIRESTORE_EMULATOR_PORT = 8080
+const FUNCTIONS_EMULATOR_PORT = 5001
 const projectId = env.VITE_FIREBASE_PROJECT_ID || 'demo-genesis'
 
 const app = initializeApp({
@@ -18,11 +23,10 @@ export const auth = getAuth(app)
 export const db = getFirestore(app)
 
 if (USE_EMULATORS) {
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
-  connectFirestoreEmulator(db, '127.0.0.1', 8080)
+  connectAuthEmulator(auth, `http://${EMULATOR_HOST}:${AUTH_EMULATOR_PORT}`, { disableWarnings: true })
+  connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_EMULATOR_PORT)
 }
 
-export const API_BASE_URL = (env.VITE_API_BASE_URL || (USE_EMULATORS ? `http://127.0.0.1:5001/${projectId}/us-central1/api` : '')).replace(
-  /\/$/,
-  '',
-)
+export const API_BASE_URL = (
+  env.VITE_API_BASE_URL || (USE_EMULATORS ? `http://${EMULATOR_HOST}:${FUNCTIONS_EMULATOR_PORT}/${projectId}/us-central1/api` : '')
+).replace(/\/$/, '')

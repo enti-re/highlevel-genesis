@@ -12,21 +12,21 @@ export async function json(res: Response) {
 
 export async function newUser() {
   const email = `eval-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@eval.local`
-  const d = await json(await fetch(`${AUTH}/accounts:signUp?key=demo`, {
+  const account = await json(await fetch(`${AUTH}/accounts:signUp?key=demo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password: `pw-${Math.random().toString(36).slice(2)}`, returnSecureToken: true }),
   }))
-  const token: string = d.idToken
+  const token: string = account.idToken
   const session = await fetch(`${API}/session`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
   const cookie = (session.headers.get('set-cookie') ?? '').split(';')[0]
   await json(await fetch(`${API}/hl/authorize-url`, { headers: { Authorization: `Bearer ${token}` } })) // mock HL connect
-  return { token, uid: d.localId as string, cookie }
+  return { token, uid: account.localId as string, cookie }
 }
 
 export async function newProject(token: string, uid: string, name: string) {
   const now = new Date().toISOString()
-  const d = await json(await fetch(`${FS}/projects`, {
+  const created = await json(await fetch(`${FS}/projects`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields: {
@@ -35,7 +35,7 @@ export async function newProject(token: string, uid: string, name: string) {
       createdAt: { timestampValue: now }, updatedAt: { timestampValue: now },
     } }),
   }))
-  return (d.name as string).split('/').pop()!
+  return (created.name as string).split('/').pop()!
 }
 
 /** Runs one prompt through /generate and returns the terminal SSE event. */
@@ -74,27 +74,27 @@ export async function generate(token: string, projectId: string, prompt: string)
 export const adminGet = async (path: string) => json(await fetch(`${FS}/${path}`, { headers: { Authorization: 'Bearer owner' } }))
 
 export async function loadFiles(projectId: string) {
-  const d = await adminGet(`projects/${projectId}/files?pageSize=100`)
-  return new Map<string, string>((d.documents ?? []).map((doc: any) => [doc.fields.path.stringValue, doc.fields.content.stringValue]))
+  const listing = await adminGet(`projects/${projectId}/files?pageSize=100`)
+  return new Map<string, string>((listing.documents ?? []).map((doc: any) => [doc.fields.path.stringValue, doc.fields.content.stringValue]))
 }
 
-export const num = (v: any) => (v ? Number(v.integerValue ?? v.doubleValue ?? 0) : 0)
+export const num = (field: any) => (field ? Number(field.integerValue ?? field.doubleValue ?? 0) : 0)
 
 export async function loadGeneration(projectId: string, generationId: string) {
-  const f = (await adminGet(`projects/${projectId}/generations/${generationId}`)).fields ?? {}
-  const usage = f.usage?.mapValue?.fields ?? {}
-  const metrics = f.metrics?.mapValue?.fields ?? {}
+  const fields = (await adminGet(`projects/${projectId}/generations/${generationId}`)).fields ?? {}
+  const usage = fields.usage?.mapValue?.fields ?? {}
+  const metrics = fields.metrics?.mapValue?.fields ?? {}
   const edits = metrics.edits?.mapValue?.fields ?? {}
   return {
-    model: f.model?.stringValue ?? null,
-    promptVersion: f.promptVersion?.stringValue ?? null,
+    model: fields.model?.stringValue ?? null,
+    promptVersion: fields.promptVersion?.stringValue ?? null,
     usage: {
       input: num(usage.inputTokens), output: num(usage.outputTokens),
       cacheRead: num(usage.cacheReadTokens), cacheWrite: num(usage.cacheCreationTokens),
     },
     ttftMs: num(metrics.ttftMs), durationMs: num(metrics.durationMs),
     edits: { applied: num(edits.applied), failed: num(edits.failed), repaired: num(edits.repaired) },
-    confidence: f.confidence?.mapValue?.fields?.score ? num(f.confidence.mapValue.fields.score) : null,
+    confidence: fields.confidence?.mapValue?.fields?.score ? num(fields.confidence.mapValue.fields.score) : null,
   }
 }
 

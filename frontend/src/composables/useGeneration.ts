@@ -5,6 +5,9 @@ import { isGenerating } from '@/lib/lock'
 import { postSse } from '@/lib/sse'
 import type { Project } from '@/types'
 
+/** How often the UI re-checks whether a held lock has gone stale. */
+const LOCK_CLOCK_TICK_MS = 30_000
+
 type Phase = 'idle' | 'streaming' | 'recovering'
 
 /**
@@ -26,7 +29,7 @@ export function useGeneration(projectId: string, project: Ref<Project | null>) {
 
   // Ticks so a lock left behind by a dead server instance expires in the UI too.
   const now = ref(Date.now())
-  const clock = setInterval(() => (now.value = Date.now()), 30_000)
+  const clock = setInterval(() => (now.value = Date.now()), LOCK_CLOCK_TICK_MS)
   onScopeDispose(() => clearInterval(clock))
 
   /** True whenever the server holds the lock, including generations started in another tab. */
@@ -90,7 +93,7 @@ export function useGeneration(projectId: string, project: Ref<Project | null>) {
             const changed = (data.files?.length ?? 0) + (data.deleted?.length ?? 0)
             if (data.status === 'no_changes') toast.info('No files changed.')
             else toast.success(`Generated ${changed} file${changed === 1 ? '' : 's'}`)
-            for (const w of data.warnings ?? []) toast.warning(w)
+            for (const warning of data.warnings ?? []) toast.warning(warning)
             break
           }
           case 'error': {

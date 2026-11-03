@@ -1,7 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { LlmChunk, LlmResult } from "./llm";
-import { SYSTEM_PROMPT } from "./prompt";
+import { MAX_OUTPUT_TOKENS, SYSTEM_PROMPT } from "./prompt";
 import { GEMINI_API_KEY } from "../config";
+
+const SSE_DATA_PREFIX = "data:";
 
 /** Alternative provider, opt-in with LLM_PROVIDER=gemini: local runs and testing without Claude credits. Claude is the default. */
 
@@ -30,11 +32,11 @@ export async function geminiCompletion(
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: messages.map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: typeof m.content === "string" ? m.content : JSON.stringify(m.content) }],
+        contents: messages.map((message) => ({
+          role: message.role === "assistant" ? "model" : "user",
+          parts: [{ text: typeof message.content === "string" ? message.content : JSON.stringify(message.content) }],
         })),
-        generationConfig: { maxOutputTokens: 32_000 },
+        generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
       }),
       signal,
     },
@@ -57,8 +59,8 @@ export async function geminiCompletion(
     while ((idx = buffer.indexOf("\n")) >= 0) {
       const line = buffer.slice(0, idx).trim();
       buffer = buffer.slice(idx + 1);
-      if (!line.startsWith("data:")) continue;
-      const data = JSON.parse(line.slice(5));
+      if (!line.startsWith(SSE_DATA_PREFIX)) continue;
+      const data = JSON.parse(line.slice(SSE_DATA_PREFIX.length));
       // Overload/quota errors can arrive mid-stream as an error object rather than an HTTP status.
       if (data.error) throw new LlmHttpError(Number(data.error.code) || 502, data.error.message ?? "Gemini stream error");
       const candidate = data.candidates?.[0];
