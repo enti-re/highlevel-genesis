@@ -5,7 +5,7 @@
 
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
-import { HL_CLIENT_ID, HL_CLIENT_SECRET, oauthRedirectUri } from "../config";
+import { HL_CLIENT_ID, HL_CLIENT_SECRET, oauthRedirectUri, secretValue } from "../config";
 import { HttpError } from "../lib/errors";
 import { HL_API_BASE } from "./operations";
 
@@ -68,7 +68,7 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
     headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
     body: new URLSearchParams({
       client_id: HL_CLIENT_ID.value(),
-      client_secret: HL_CLIENT_SECRET.value(),
+      client_secret: secretValue(HL_CLIENT_SECRET),
       user_type: "Location",
       redirect_uri: oauthRedirectUri(),
       ...params,

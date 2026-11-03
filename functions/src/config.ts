@@ -22,3 +22,6 @@ export const oauthRedirectUri = () => `${API_BASE_URL.value().replace(/\/$/, "")
 
 /** Warm instances kept running. 1 while the app is under review avoids a cold start on the first request; 0 otherwise. */
 export const MIN_INSTANCES = defineInt("MIN_INSTANCES", { default: 0 });
+
+/** Secret values pasted into a terminal often carry a trailing newline, which breaks auth headers. */
+export const secretValue = (secret: { value(): string }) => secret.value().trim();

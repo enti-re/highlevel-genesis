@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { LlmChunk, LlmResult } from "./llm";
 import { MAX_OUTPUT_TOKENS, SYSTEM_PROMPT } from "./prompt";
-import { GEMINI_API_KEY } from "../config";
+import { GEMINI_API_KEY, secretValue } from "../config";
 
 const SSE_DATA_PREFIX = "data:";
 
@@ -21,7 +21,7 @@ export async function geminiCompletion(
   signal: AbortSignal,
   onChunk: (chunk: LlmChunk) => void,
 ): Promise<LlmResult> {
-  const apiKey = GEMINI_API_KEY.value();
+  const apiKey = secretValue(GEMINI_API_KEY);
   if (!apiKey) throw new LlmHttpError(401, "GEMINI_API_KEY secret is not set.");
   const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 

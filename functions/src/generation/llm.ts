@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "firebase-functions";
-import { ANTHROPIC_API_KEY, GEMINI_API_KEY, LLM_MODEL, LLM_PROVIDER, isMockLlm } from "../config";
+import { ANTHROPIC_API_KEY, GEMINI_API_KEY, LLM_MODEL, LLM_PROVIDER, isMockLlm, secretValue } from "../config";
 import { MAX_OUTPUT_TOKENS, SYSTEM_PROMPT } from "./prompt";
 import { mockCompletion } from "./mockLlm";
 import { geminiCompletion } from "./gemini";
@@ -23,7 +23,11 @@ const LOG_DETAIL_CHARS = 200;
 let client: Anthropic | null = null;
 // With a fallback configured, retrying Claude for minutes on a rate limit is worse than switching.
 const getClient = () =>
-  (client ??= new Anthropic({ apiKey: ANTHROPIC_API_KEY.value(), maxRetries: GEMINI_API_KEY.value() ? 1 : 2, timeout: LLM_TIMEOUT_MS }));
+  (client ??= new Anthropic({
+    apiKey: secretValue(ANTHROPIC_API_KEY),
+    maxRetries: secretValue(GEMINI_API_KEY) ? 1 : 2,
+    timeout: LLM_TIMEOUT_MS,
+  }));
 
 /** Recorded on each generation for cost and eval reports. */
 export function activeModel(): string {
@@ -52,7 +56,7 @@ export async function streamCompletion(
   } catch (err) {
     // Capacity/billing failures before any output switch to Gemini; after output starts, switching
     // would mix two answers, so the error stands.
-    if (streamed || signal.aborted || !shouldFallBack(err) || !GEMINI_API_KEY.value()) throw err;
+    if (streamed || signal.aborted || !shouldFallBack(err) || !secretValue(GEMINI_API_KEY)) throw err;
     logger.warn("llm_fallback", { from: LLM_MODEL.value(), to: geminiModel(), reason: (err as Error).message?.slice(0, LOG_DETAIL_CHARS) });
     let fallbackStreamed = false;
     try {
