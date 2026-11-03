@@ -1,4 +1,4 @@
-import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
+import { collection, doc, limit, limitToLast, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { computed, onScopeDispose, ref } from 'vue'
 import { db } from '@/lib/firebase'
 import type { ChatMessage, Project, ProjectFile, Snapshot } from '@/types'
@@ -39,7 +39,7 @@ export function useWorkspace(projectId: string) {
       onError,
     ),
     onSnapshot(
-      query(collection(projectRef, 'messages'), orderBy('createdAt', 'asc'), limit(200)),
+      query(collection(projectRef, 'messages'), orderBy('createdAt', 'asc'), limitToLast(200)),
       (snap) => {
         messages.value = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ChatMessage, 'id'>) }))
       },

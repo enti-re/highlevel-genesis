@@ -13,6 +13,7 @@ import { addUsage, classifyError, type GenerationFailure } from "../generation/l
 import { applyRepair, resolveEdits, type ResolvedEdits } from "../generation/resolve";
 import { saveGeneration } from "../generation/save";
 import { jsSyntaxErrors } from "../generation/syntax";
+import { stripCodeFence, stripWrapperTags } from "../generation/validate";
 
 const HARD_TIMEOUT_MS = 8 * 60 * 1000;
 const MAX_PROMPT_CHARS = 4000;
@@ -144,7 +145,7 @@ export async function generateHandler(req: Request, res: Response) {
 
     // One extra call that asks for complete corrected files; only the requested paths are taken from it.
     const requestRepair = async (paths: string[], problem: string) => {
-      const repairParser = new FileStreamParser();
+      let repairParser = new FileStreamParser();
       const onlyFiles = (events: ParserEvent[]) => forward(events.filter((e) => e.type !== "text"));
       const repair = await streamCompletion(
         [
@@ -156,7 +157,11 @@ export async function generateHandler(req: Request, res: Response) {
           },
         ],
         abort.signal,
-        (chunk) => chunk.type === "text" && onlyFiles(repairParser.feed(chunk.text)),
+        (chunk) => {
+          if (chunk.type === "restart")
+            repairParser = new FileStreamParser(); // fallback model re-ran: drop the partial answer
+          else onlyFiles(repairParser.feed(chunk.text));
+        },
       );
       const repaired = repairParser.finish();
       onlyFiles(repaired.events);
@@ -175,7 +180,9 @@ export async function generateHandler(req: Request, res: Response) {
     }
 
     // A syntax error in app.js means a blank preview. Ask once for a fix; keep it only if it parses.
-    const syntaxErrors = failure ? new Map<string, string>() : jsSyntaxErrors(resolved.proposed);
+    // Checked after the same cleanup validation applies, so a stray fence or wrapper tag isn't sent for repair.
+    const cleaned = new Map([...resolved.proposed].map(([p, c]) => [p, stripWrapperTags(p, stripCodeFence(c))]));
+    const syntaxErrors = failure ? new Map<string, string>() : jsSyntaxErrors(cleaned);
     if (syntaxErrors.size > 0) {
       const paths = [...syntaxErrors.keys()];
       for (const [path, error] of syntaxErrors) logger.warn("syntax_error", { projectId, generationId: genRef.id, path, error });

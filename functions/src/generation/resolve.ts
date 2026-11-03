@@ -49,5 +49,5 @@ export function applyRepair(resolved: ResolvedEdits, files: Map<string, string>,
     failures.delete(path);
     repaired++;
   }
-  return { proposed, failures, stats: { ...resolved.stats, repaired } };
+  return { proposed, failures, stats: { ...resolved.stats, failed: resolved.stats.failed - repaired, repaired } };
 }

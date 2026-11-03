@@ -54,6 +54,7 @@ describe("applyRepair", () => {
     expect([...r.proposed]).toEqual([["app.js", "fixed"]]);
     expect(r.failures.size).toBe(0);
     expect(r.stats.repaired).toBe(1);
+    expect(r.stats.failed).toBe(0); // repaired edits must not also count as failed (lowered confidence)
   });
 });
 

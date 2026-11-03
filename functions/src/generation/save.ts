@@ -7,7 +7,9 @@ import type { LlmResult } from "./llm";
 import type { GenerationFailure } from "./llmErrors";
 import type { ParseResult } from "./parser";
 import { resolveEdits, type ResolvedEdits } from "./resolve";
-import { validateFileOps } from "./validate";
+import { projectBytes, validateFileOps } from "./validate";
+
+const SNAPSHOT_SAFE_BYTES = 900_000;
 
 export type GenerationStatus = "complete" | "no_changes" | "partial" | "failed" | "cancelled" | "cancelled_partial";
 
@@ -39,7 +41,17 @@ export async function saveGeneration(input: SaveInput): Promise<void> {
   try {
     const existing = await loadFiles(projectRef);
     const { proposed, stats: editStats, failures } = input.resolved ?? resolveEdits(existing, result);
-    const validation = validateFileOps(existing, proposed, result.deleted);
+    let validation = validateFileOps(existing, proposed, result.deleted);
+    // A snapshot holds every file in one Firestore doc (1 MiB max). Edits to existing files aren't
+    // trimmed by the per-project cap, so refuse a save that would make that doc unwritable.
+    if (projectBytes(validation.merged) > SNAPSHOT_SAFE_BYTES) {
+      validation = { ...validation, accepted: new Map(), deletes: new Set(), merged: existing };
+      failure ??= {
+        code: "PROJECT_TOO_LARGE",
+        message: "This change would make the project too large to save (about 900 KB). Remove or shorten some files and try again.",
+        retryable: false,
+      };
+    }
     const warnings = [...[...failures].map(([p, r]) => `Skipped a change to "${p}": ${r}.`), ...validation.warnings];
     if (result.incomplete) warnings.push(`"${result.incomplete.path}" was cut off and was not saved.`);
     for (const r of validation.rejected) warnings.push(`Skipped "${r.path}": ${r.reason}.`);

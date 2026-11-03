@@ -308,7 +308,7 @@ Verified in the browser: an injected inline script, a script from an unknown dom
 
 **Known gaps (documented):**
 - Tokens are not additionally encrypted at rest (KMS envelope encryption is planned).
-- Rate limiting is per instance plus Firestore, not a global token bucket.
+- Rate limiting is a Firestore fixed window (one transaction per call), not a global token bucket. The CRM bucket (120/min) is above Firestore's ~1 write/s per-doc guidance under sustained load; move to Redis/Memorystore token buckets at ~1k active users.
 
 ---
 
@@ -418,3 +418,9 @@ Verified in the browser: an injected inline script, a script from an unknown dom
    | 4. Planner + parallel workers | Large multi-module apps (independent screens) | A planner splits the change into independent modules; workers edit them in parallel with the map as shared contract; a final pass checks cross-file names (and the verify-and-fix loop runs the app). Only when modules are truly independent, otherwise coordination costs more than it saves. |
 
    Cross-cutting: summarise chat history beyond the last 6 turns instead of dropping it; keep `omittedFiles` visible to the model so it never edits code it hasn't seen (already enforced for repairs).
+7. **Scale and operations (from the design review):**
+   - **Split `/generate` into its own function/service.** Long streams and short CRM calls share `maxInstances 10 × concurrency 40` ≈ 400 slots; peak at 50k generations/day needs more. Trigger: peak streams > ~60% of slots.
+   - **Durable generation jobs:** Cloud Tasks (retries + dead-letter queue) with a resumable stream (`?from=offset`) and a scheduled sweeper for orphaned locks. Trigger: confirm on Cloud Run whether a client disconnect throttles CPU mid-generation.
+   - **Snapshot content out of the list query:** the History listener reads up to 50 full copies; store files as content-addressed blobs (GCS) and keep manifests in Firestore. Trigger: projects near the size cap or slow History.
+   - **From preview to a real marketplace app:** publish a generated app to Hosting with a runtime that calls the same proxy using HighLevel's custom-page SSO user context and per-app scopes (today `window.hl` exists only inside the Genesis preview).
+   - **Spend kill switch** (global daily $ cap), **alert on `llm_fallback`**, **TTL policy on `oauthStates`**, token deletion and data retention on disconnect, and pinning preview `script-src` to the kit's exact jsDelivr paths.
