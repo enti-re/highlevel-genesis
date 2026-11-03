@@ -6,8 +6,8 @@ Describe an app in chat. Genesis streams the code into an editor in real time an
 
 | | |
 |---|---|
-| Live app | `(https://genesis-app-builder.web.app/dashboard)` |
-| Functions base URL | `https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/api` |
+| Live app | `https://genesis-app-builder.web.app/dashboard` |
+| Functions base URL | `https://us-central1-genesis-app-builder.cloudfunctions.net/api` |
 | Loom walkthrough | *(link added after recording)* |
 
 ---
