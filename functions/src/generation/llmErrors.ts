@@ -36,6 +36,9 @@ export function classifyError(err: unknown, signal: AbortSignal): GenerationFail
   if (err instanceof Anthropic.RateLimitError) {
     return { code: "LLM_RATE_LIMITED", message: "The AI is busy right now. Please retry in a minute.", retryable: true };
   }
+  if (err instanceof Anthropic.BadRequestError && /credit balance/i.test(err.message)) {
+    return { code: "LLM_CONFIG", message: "The AI account is out of credits. Please contact the app owner.", retryable: false };
+  }
   if (err instanceof Anthropic.BadRequestError) {
     return { code: "LLM_BAD_REQUEST", message: "The AI rejected the request (it may be too large).", retryable: false };
   }

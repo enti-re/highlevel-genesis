@@ -115,7 +115,8 @@ To use the **real** Claude API and HighLevel locally, set `MOCK_LLM=false` / `MO
 **Tests**
 
 ```bash
-npm --prefix functions test            # unit: stream parser, edits, syntax check, validation, HL operations + retry, confidence, external context (73 tests)
+npm --prefix functions test            # unit: parser, edits, repair/syntax, validation, LLM fallback + error mapping, HL ops + retry, confidence (106 tests)
+npm --prefix functions run test:coverage   # same suite with line coverage (logic modules ~100%; routes/IO are covered by e2e)
 npm --prefix frontend test             # unit: preview builder + starter kit, SSE parser (11 tests)
 node scripts/e2e-emulator.mjs          # end-to-end against emulators (53 checks): rules, OAuth,
                                        # proxy, SSE, partial save, lock, cancel, disconnect, restore
