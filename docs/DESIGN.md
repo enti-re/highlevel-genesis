@@ -2,7 +2,29 @@
 
 > An AI app builder that turns a chat prompt into a working HighLevel marketplace app, streamed live, previewed against real CRM data, and versioned.
 
-**Contents:** 1 Goals · 2 Architecture · 3 Data model · 4 Key flows · 5 LLM pipeline · 6 Preview sandbox & starter kit · 7 Consistency & concurrency · 8 Failure handling · 9 Security · 10 Observability · 11 Performance & cost · 12 Scaling to 10k users · 13 Trade-offs · 14 Testing · 15 Future work
+## At a glance
+
+```
+ Browser (Vue 3 + shadcn-vue)  ──POST /generate (SSE)──▶  Cloud Function "api"  ──▶  Claude (Gemini fallback)
+   chat · Monaco · preview            ◀── live tokens ──      │  one atomic save
+      │                                                       ▼
+      │ live listeners ◀──────────────────────────────  Firestore (source of truth)
+      ▼
+ Preview iframe (sandboxed) ──window.hl──▶ parent ──httpOnly cookie──▶ /hl/call ──▶ HighLevel API
+```
+
+**Five decisions that shape it**
+1. **AI-written code never touches CRM credentials.** Apps run in an opaque-origin iframe with their own CSP and reach HighLevel only through `window.hl` → an allowlisted proxy of 11 operations (§6, §9).
+2. **Single streaming call + bounded repair, not an agent.** Tagged output streams into the editor; search/replace edits keep changes cheap; at most one repair for failed edits and one for syntax errors (§5).
+3. **Firestore is the source of truth.** One atomic batch per generation (files + snapshot + message + unlock) and a transaction lock, so closed tabs, double submits and crashed instances never corrupt a project (§7, §8).
+4. **Partial BFF.** The ID token stays in the browser for live listeners; the high-value CRM path needs an httpOnly, SameSite=Strict cookie; a strict CSP limits what injected script could do (§9).
+5. **Measured quality.** An eval suite renders generated apps in headless Chrome; a per-generation confidence score (no extra model call) flags likely-broken apps and is calibrated against the evals (§10, §14).
+
+**Evidence:** 106 backend + 11 frontend unit tests and 53 end-to-end checks run in CI on every push. The eval suite found that 25% of apps failed on one bug class (a backtick inside the Vue template string); after a prompt rule, a server-side syntax check and one bounded repair, every graded case passed (`evals/results/latest.md`).
+
+**Known limitations** are listed in one place in §16.
+
+**Contents:** 1 Goals · 2 Architecture · 3 Data model · 4 Key flows · 5 LLM pipeline · 6 Preview sandbox & starter kit · 7 Consistency & concurrency · 8 Failure handling · 9 Security · 10 Observability · 11 Performance & cost · 12 Scaling to 10k users · 13 Trade-offs · 14 Testing · 15 Future work · 16 Known limitations
 
 ---
 
@@ -425,3 +447,19 @@ Verified in the browser: an injected inline script, a script from an unknown dom
    - **Snapshot content out of the list query:** the History listener reads up to 50 full copies; store files as content-addressed blobs (GCS) and keep manifests in Firestore. Trigger: projects near the size cap or slow History.
    - **From preview to a real marketplace app:** publish a generated app to Hosting with a runtime that calls the same proxy using HighLevel's custom-page SSO user context and per-app scopes (today `window.hl` exists only inside the Genesis preview).
    - **Spend kill switch** (global daily $ cap), **alert on `llm_fallback`**, **TTL policy on `oauthStates`**, token deletion and data retention on disconnect, and pinning preview `script-src` to the kit's exact jsDelivr paths.
+
+---
+
+## 16. Known limitations
+
+Stated plainly, each with where it is handled or planned.
+
+| Limitation | Impact today | Plan |
+|---|---|---|
+| Preview can still navigate itself to a URL carrying data; WebRTC isn't covered by CSP | Contains buggy code, not deliberately hostile code | Separate preview origin + egress proxy; confirm CRM writes (§9, §15) |
+| Partial BFF: the Firebase ID token lives in browser storage | A stolen token can read/write the user's projects (not their CRM) | Full BFF when compliance requires it (§9) |
+| Generated apps run only inside the Genesis preview (`window.hl` exists there) | Not yet a published, installable marketplace app | Publish to Hosting with a runtime using HighLevel's SSO context and per-app scopes (§15) |
+| Generation runs inside the HTTP request, no job queue | A crashed instance leaves a stale lock (cleared after 10 min); no dead-letter queue | Cloud Tasks with retries + DLQ, resumable streams, lock sweeper (§8, §15) |
+| Writes from generated apps (`sendMessage`, `create`) aren't confirmed by the user | A buggy app could send messages; rate-limited to 120 calls/min | Confirm-before-write in the bridge (§15) |
+| Scale untested beyond one region / `maxInstances 10` | ~400 concurrent streams before Cloud Run returns 429 | Split `/generate`, Redis rate limits, snapshot blobs; triggers in §12, §15 |
+| Eval numbers so far are from Gemini runs | Claude quality/cost per generation not yet measured in the suite | Run `evals/` on Claude after deploy and publish the numbers |

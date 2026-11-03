@@ -14,7 +14,7 @@ Describe an app in chat. Genesis streams the code into an editor in real time an
 
 ## How it works
 
-> Full system design (data model, sequence diagrams, failure handling, security, scaling to 10k users): **[docs/DESIGN.md](docs/DESIGN.md)**
+> Full system design: **[docs/DESIGN.md](docs/DESIGN.md)**. Its first section, *At a glance*, is a one-minute summary (diagram, five key decisions, evidence); §16 lists known limitations.
 
 ```
  Browser (Vue 3 + shadcn-vue)
