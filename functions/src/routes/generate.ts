@@ -1,28 +1,27 @@
+import type { DocumentReference } from "firebase-admin/firestore";
 import type { Request, Response } from "express";
 import { logger } from "firebase-functions";
 import { requireUser } from "../lib/auth";
 import { HttpError } from "../lib/errors";
 import { enforceRateLimit } from "../lib/rateLimit";
 import { openSse } from "../lib/sse";
-import { STALE_LOCK_MS, db, getOwnedProject, loadFiles, loadHistory, now } from "../lib/store";
+import { STALE_LOCK_MS, db, getOwnedProject, now } from "../lib/store";
+import { loadGenerationContext } from "../generation/context";
 import { FileStreamParser, ParseResult, ParserEvent } from "../generation/parser";
-import { PROMPT_VERSION, buildMessages } from "../generation/prompt";
-import { loadExternalContext } from "../generation/externalContext";
+import { PROMPT_VERSION } from "../generation/prompt";
 import { activeModel, streamCompletion, LlmResult } from "../generation/llm";
 import { addUsage, classifyError, type GenerationFailure } from "../generation/llmErrors";
-import { applyRepair, resolveEdits, type ResolvedEdits } from "../generation/resolve";
+import { repairFailedEdits, repairSyntaxErrors, type RequestRepair } from "../generation/repair";
+import { resolveEdits, type ResolvedEdits } from "../generation/resolve";
 import { saveGeneration } from "../generation/save";
-import { jsSyntaxErrors } from "../generation/syntax";
-import { stripCodeFence, stripWrapperTags } from "../generation/validate";
 
 const HARD_TIMEOUT_MS = 8 * 60 * 1000;
 const MAX_PROMPT_CHARS = 4000;
 const GENERATIONS_PER_WINDOW = 10;
 const GENERATION_WINDOW_MS = 10 * 60 * 1000;
-/** The 6 messages prompt.ts sends plus the prompt just stored (dropped before building context). */
-const HISTORY_TO_LOAD = 7;
 
 type AbortReason = "cancelled" | "timeout";
+type Sse = ReturnType<typeof openSse>;
 
 /**
  * POST /generate -> SSE. Lock -> stream -> parse -> edits/repair -> one atomic save.
@@ -39,32 +38,7 @@ export async function generateHandler(req: Request, res: Response) {
   }
   await enforceRateLimit(user.uid, "generate", GENERATIONS_PER_WINDOW, GENERATION_WINDOW_MS);
   const { ref: projectRef } = await getOwnedProject(projectId, user.uid);
-
-  // Per-project lock: a double-submit or second tab can't start two generations.
-  const genRef = projectRef.collection("generations").doc();
-  await db().runTransaction(async (tx) => {
-    const snap = await tx.get(projectRef);
-    const active = snap.get("activeGeneration") as { id: string; startedAt: number } | null;
-    if (active && Date.now() - active.startedAt < STALE_LOCK_MS) {
-      throw new HttpError(409, "GENERATION_IN_PROGRESS", "A generation is already running for this project.");
-    }
-    tx.update(projectRef, { activeGeneration: { id: genRef.id, startedAt: Date.now() } });
-    tx.set(genRef, {
-      uid: user.uid,
-      prompt,
-      model: activeModel(),
-      promptVersion: PROMPT_VERSION,
-      status: "running",
-      cancelRequested: false,
-      createdAt: now(),
-    });
-    tx.set(projectRef.collection("messages").doc(), {
-      role: "user",
-      content: prompt,
-      generationId: genRef.id,
-      createdAt: now(),
-    });
-  });
+  const genRef = await lockProject(projectRef, user.uid, prompt);
 
   const sse = openSse(res);
   sse.send("start", { generationId: genRef.id });
@@ -85,36 +59,10 @@ export async function generateHandler(req: Request, res: Response) {
   let resolved: ResolvedEdits | null = null;
   let llmResult: LlmResult | null = null;
   let failure: GenerationFailure | null = null;
-
-  const forward = (events: ParserEvent[]) => {
-    for (const event of events) {
-      if (event.type === "text") sse.send("text", { delta: event.text });
-      else if (event.type === "file_start") sse.send("file_start", { path: event.path });
-      else if (event.type === "file_delta") sse.send("token", { path: event.path, delta: event.text });
-      else if (event.type === "file_end") sse.send("file_end", { path: event.path });
-      else if (event.type === "file_delete") sse.send("file_delete", { path: event.path });
-      else if (event.type === "edit_start") sse.send("edit_start", { path: event.path });
-      else if (event.type === "edit_end") sse.send("edit_end", { path: event.path });
-    }
-  };
+  const forward = (events: ParserEvent[]) => forwardToSse(sse, events);
 
   try {
-    const [existing, history, userSnap] = await Promise.all([
-      loadFiles(projectRef),
-      loadHistory(projectRef, HISTORY_TO_LOAD),
-      db().collection("users").doc(user.uid).get(),
-    ]);
-    const hl = userSnap.get("hl") as { status?: string; locationName?: string; locationId?: string } | undefined;
-    const hlConnected = hl?.status === "connected";
-    const externalContext = hlConnected ? await loadExternalContext(user.uid, hl?.locationId ?? null) : null;
-    const { messages, omittedFiles } = buildMessages({
-      files: existing,
-      history: history.slice(0, -1), // the last entry is the prompt we just stored
-      locationName: hl?.locationName ?? null,
-      hlConnected,
-      externalContext,
-      prompt,
-    });
+    const { existing, messages, omittedFiles } = await loadGenerationContext(projectRef, user.uid, prompt);
     if (omittedFiles.length) {
       sse.send("warning", { message: `Large project: ${omittedFiles.length} file(s) were not sent to the AI.` });
     }
@@ -138,17 +86,13 @@ export async function generateHandler(req: Request, res: Response) {
       sse.send("warning", { message: "The response hit the length limit; the last file may be incomplete." });
     }
 
-    // Apply search/replace edits; if one doesn't match, ask once for the whole file.
     const finished = parser.finish();
     forward(finished.events);
     parsed = finished.result;
     resolved = resolveEdits(existing, parsed);
-    for (const [path, reason] of resolved.failures) logger.warn("edit_failed", { projectId, generationId: genRef.id, path, reason });
-    // A "complete rewrite" of a file the model never saw would be invented, not repaired, so those stay failed.
-    const repairable = [...resolved.failures].filter(([path]) => !omittedFiles.includes(path));
 
-    // One extra call that asks for complete corrected files; only the requested paths are taken from it.
-    const requestRepair = async (paths: string[], problem: string) => {
+    // Continues the same conversation, so it reads the whole context from the prompt cache.
+    const requestRepair: RequestRepair = async (paths, problem) => {
       let repairParser = new FileStreamParser();
       const onlyFiles = (events: ParserEvent[]) => forward(events.filter((event) => event.type !== "text"));
       const repair = await streamCompletion(
@@ -173,33 +117,14 @@ export async function generateHandler(req: Request, res: Response) {
       return repaired.result.completed;
     };
 
-    if (!failure && repairable.length > 0) {
-      const paths = repairable.map(([path]) => path);
-      sse.send("warning", { message: `A quick edit to ${paths.join(", ")} didn't match, so rewriting it in full.` });
-      const files = await requestRepair(
-        paths,
-        `These edits could not be applied:\n${repairable.map(([path, reason]) => `- ${path}: ${reason}`).join("\n")}\n\nApply every change from your previous answer.`,
-      );
-      resolved = applyRepair(resolved, files, paths);
-    }
-
-    // A syntax error in app.js means a blank preview. Ask once for a fix; keep it only if it parses.
-    // Checked after the same cleanup validation applies, so a stray fence or wrapper tag isn't sent for repair.
-    const cleaned = new Map([...resolved.proposed].map(([path, content]) => [path, stripWrapperTags(path, stripCodeFence(content))]));
-    const syntaxErrors = failure ? new Map<string, string>() : jsSyntaxErrors(cleaned);
-    if (syntaxErrors.size > 0) {
-      const paths = [...syntaxErrors.keys()];
-      for (const [path, error] of syntaxErrors) logger.warn("syntax_error", { projectId, generationId: genRef.id, path, error });
-      sse.send("warning", { message: `${paths.join(", ")} had a JavaScript syntax error, fixing it.` });
-      const files = await requestRepair(
-        paths,
-        `Your code has JavaScript syntax errors:\n${[...syntaxErrors].map(([path, error]) => `- ${path}: ${error}`).join("\n")}\nA common cause is a backtick or \${...} inside the backtick template string.`,
-      );
-      const fixed = new Map(
-        [...files].filter(([path]) => paths.includes(path) && jsSyntaxErrors(new Map([[path, files.get(path)!]])).size === 0),
-      );
-      for (const [path, content] of fixed) resolved.proposed.set(path, content);
-      resolved.stats.syntaxRepaired = fixed.size;
+    if (!failure) {
+      const repairContext = {
+        requestRepair,
+        warn: (message: string) => sse.send("warning", { message }),
+        logFields: { projectId, generationId: genRef.id },
+      };
+      resolved = await repairFailedEdits(resolved, omittedFiles, repairContext);
+      await repairSyntaxErrors(resolved, repairContext);
     }
   } catch (err) {
     failure = classifyError(err, abort.signal);
@@ -233,6 +158,49 @@ export async function generateHandler(req: Request, res: Response) {
     });
   } finally {
     sse.end();
+  }
+}
+
+/** Per-project lock (transaction): a double-submit or second tab can't start two generations. */
+async function lockProject(projectRef: DocumentReference, uid: string, prompt: string): Promise<DocumentReference> {
+  const genRef = projectRef.collection("generations").doc();
+  await db().runTransaction(async (tx) => {
+    const snap = await tx.get(projectRef);
+    const active = snap.get("activeGeneration") as { id: string; startedAt: number } | null;
+    if (active && Date.now() - active.startedAt < STALE_LOCK_MS) {
+      throw new HttpError(409, "GENERATION_IN_PROGRESS", "A generation is already running for this project.");
+    }
+    tx.update(projectRef, { activeGeneration: { id: genRef.id, startedAt: Date.now() } });
+    tx.set(genRef, {
+      uid,
+      prompt,
+      model: activeModel(),
+      promptVersion: PROMPT_VERSION,
+      status: "running",
+      cancelRequested: false,
+      createdAt: now(),
+    });
+    tx.set(projectRef.collection("messages").doc(), { role: "user", content: prompt, generationId: genRef.id, createdAt: now() });
+  });
+  return genRef;
+}
+
+/** Parser events -> SSE protocol events (see README). */
+const SSE_EVENT: Record<ParserEvent["type"], string> = {
+  text: "text",
+  file_start: "file_start",
+  file_delta: "token",
+  file_end: "file_end",
+  file_delete: "file_delete",
+  edit_start: "edit_start",
+  edit_end: "edit_end",
+};
+
+function forwardToSse(sse: Sse, events: ParserEvent[]) {
+  for (const event of events) {
+    if (event.type === "text") sse.send("text", { delta: event.text });
+    else if (event.type === "file_delta") sse.send(SSE_EVENT[event.type], { path: event.path, delta: event.text });
+    else sse.send(SSE_EVENT[event.type], { path: event.path });
   }
 }
 

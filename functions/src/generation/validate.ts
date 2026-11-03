@@ -37,9 +37,12 @@ export function stripCodeFence(content: string): string {
  * Models sometimes wrap a .js/.css file in its HTML tag (or leave a stray
  * closing tag at the end), which is a syntax error once the file is inlined.
  */
+/** The HTML tag a model sometimes wraps a .js or .css file in. */
+const WRAPPER_TAG: Record<string, string> = { js: "script", css: "style" };
+
 export function stripWrapperTags(path: string, content: string): string {
   const ext = path.split(".").pop()?.toLowerCase();
-  const tag = ext === "js" ? "script" : ext === "css" ? "style" : null;
+  const tag = ext ? WRAPPER_TAG[ext] : undefined;
   if (!tag) return content;
   return content.replace(new RegExp(`^\\s*<${tag}\\b[^>]*>\\s*\\n?`, "i"), "").replace(new RegExp(`\\n?\\s*</${tag}>\\s*$`, "i"), "");
 }

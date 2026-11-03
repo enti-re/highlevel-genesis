@@ -22,6 +22,7 @@ const props = defineProps<{
 }>()
 
 const pendingRestore = ref<Snapshot | null>(null)
+const CHANGE_SYMBOL: Record<Change['kind'], string> = { added: '+', modified: '~', deleted: '−' }
 
 // "Current" means identical to the live files, not just newest: after a saved hand edit the newest
 // snapshot differs and must stay restorable.
@@ -128,7 +129,7 @@ const language = (path: string) =>
               :title="`View ${change.kind} file`"
               @click="openDiff(snapshot, change)"
             >
-              {{ change.kind === 'added' ? '+' : change.kind === 'deleted' ? '−' : '~' }} {{ change.path }}
+              {{ CHANGE_SYMBOL[change.kind] }} {{ change.path }}
             </button>
           </div>
         </div>

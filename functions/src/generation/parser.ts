@@ -38,6 +38,7 @@ const DELETE_OPEN = '<delete path="';
 const FILE_CLOSE = "</file>";
 const EDIT_OPEN = '<edit path="';
 const EDIT_CLOSE = "</edit>";
+const OPEN_TAG = { file: FILE_OPEN, edit: EDIT_OPEN, delete: DELETE_OPEN } as const;
 const MAX_TAG_LENGTH = 300;
 
 /** Length of the longest suffix of `s` that is a prefix of `tag`. */
@@ -115,7 +116,7 @@ export class FileStreamParser {
 
     const idx = Math.min(...candidates);
     const kind = idx === fileIdx ? "file" : idx === editIdx ? "edit" : "delete";
-    const open = kind === "file" ? FILE_OPEN : kind === "edit" ? EDIT_OPEN : DELETE_OPEN;
+    const open = OPEN_TAG[kind];
     const tagEnd = this.buffer.indexOf(">", idx);
     if (tagEnd === -1) {
       if (this.buffer.length - idx > MAX_TAG_LENGTH) {
