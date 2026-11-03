@@ -1,4 +1,4 @@
-import { defineSecret, defineString } from "firebase-functions/params";
+import { defineInt, defineSecret, defineString } from "firebase-functions/params";
 
 // Secrets live in Secret Manager in production and functions/.secret.local in the emulator.
 export const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
@@ -19,3 +19,6 @@ export const MOCK_HL = defineString("MOCK_HL", { default: "false" });
 export const isMockLlm = () => MOCK_LLM.value() === "true";
 export const isMockHl = () => MOCK_HL.value() === "true";
 export const oauthRedirectUri = () => `${API_BASE_URL.value().replace(/\/$/, "")}/oauth/callback`;
+
+/** Warm instances kept running. 1 while the app is under review avoids a cold start on the first request; 0 otherwise. */
+export const MIN_INSTANCES = defineInt("MIN_INSTANCES", { default: 0 });

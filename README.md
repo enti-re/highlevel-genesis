@@ -161,6 +161,7 @@ cp .env.example frontend/.env                        # fill VITE_FIREBASE_* and 
 firebase deploy --only firestore,functions,hosting   # predeploy hooks build both packages
 ```
 
+- **Cold starts:** `MIN_INSTANCES=1` in `functions/.env` keeps one instance warm while the app is under review (a few dollars a month). Set it to `0` and redeploy afterwards.
 - Enable **Email/Password** sign-in in Firebase Console → Authentication.
 - The first deploy prints the function URL. Set it as `API_BASE_URL` / `VITE_API_BASE_URL`, register `${API_BASE_URL}/oauth/callback` in HighLevel, and redeploy.
 - `api` is one 2nd-gen HTTPS function (Cloud Run): 540 s timeout, streaming responses, secrets from Secret Manager. Before a demo, hit `/health` once to avoid a cold start.

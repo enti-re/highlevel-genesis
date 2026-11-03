@@ -3,7 +3,7 @@ import express from "express";
 import { initializeApp } from "firebase-admin/app";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
-import { ANTHROPIC_API_KEY, APP_URL, GEMINI_API_KEY, HL_CLIENT_SECRET } from "./config";
+import { ANTHROPIC_API_KEY, APP_URL, GEMINI_API_KEY, HL_CLIENT_SECRET, MIN_INSTANCES } from "./config";
 import { createSessionHandler, deleteSessionHandler } from "./lib/auth";
 import { asyncRoute, errorMiddleware } from "./lib/errors";
 import { cancelHandler, generateHandler } from "./routes/generate";
@@ -57,6 +57,7 @@ export const api = onRequest(
     timeoutSeconds: FUNCTION_TIMEOUT_S,
     memory: "512MiB",
     concurrency: REQUESTS_PER_INSTANCE,
+    minInstances: MIN_INSTANCES,
     secrets: [ANTHROPIC_API_KEY, HL_CLIENT_SECRET, GEMINI_API_KEY],
     invoker: "public",
   },

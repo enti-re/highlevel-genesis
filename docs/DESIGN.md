@@ -339,6 +339,7 @@ Verified in the browser: an injected inline script, a script from an unknown dom
 | External-context cache (5 min, keyed by user + location) | Follow-up prompts skip 3 HighLevel calls (up to 4 s) |
 | SSE heartbeats every 10 s | Proxies don't close the stream during model thinking |
 | `concurrency: 40` per instance | Long-lived streams share instances instead of scaling 1:1 |
+| `minInstances` from config (`MIN_INSTANCES`, 1 during review, 0 otherwise) | No cold start on a reviewer's first click; costs one idle instance |
 | Preview renders saved files only | No re-render storms from half-written code during streaming |
 
 **Approximate cost per generation:** Opus 5.5 is about $0.15–0.25 (8–10k output tokens at $20/M plus a small input). Sonnet 5.5 is about half. Firebase cost at demo scale is about $0.
