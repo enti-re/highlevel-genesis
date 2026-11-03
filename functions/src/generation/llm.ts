@@ -18,7 +18,9 @@ export interface LlmResult {
 }
 
 let client: Anthropic | null = null;
-const getClient = () => (client ??= new Anthropic({ apiKey: ANTHROPIC_API_KEY.value(), maxRetries: 2, timeout: 8 * 60 * 1000 }));
+// With a fallback configured, retrying Claude for minutes on a rate limit is worse than switching.
+const getClient = () =>
+  (client ??= new Anthropic({ apiKey: ANTHROPIC_API_KEY.value(), maxRetries: GEMINI_API_KEY.value() ? 1 : 2, timeout: 8 * 60 * 1000 }));
 
 /** Recorded on each generation for cost and eval reports. */
 export function activeModel(): string {
@@ -27,7 +29,7 @@ export function activeModel(): string {
   return LLM_MODEL.value();
 }
 
-const geminiModel = () => process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const geminiModel = () => process.env.GEMINI_MODEL || "gemini-3.5-flash";
 
 /** SDK retries happen before the first token only, so a retry never duplicates output the user has seen. */
 export async function streamCompletion(
@@ -49,11 +51,17 @@ export async function streamCompletion(
     // would mix two answers, so the error stands.
     if (streamed || signal.aborted || !shouldFallBack(err) || !GEMINI_API_KEY.value()) throw err;
     logger.warn("llm_fallback", { from: LLM_MODEL.value(), to: geminiModel(), reason: (err as Error).message?.slice(0, 200) });
+    let fallbackStreamed = false;
     try {
-      return { ...(await geminiCompletion(messages, signal, onChunk)), model: geminiModel() };
+      const result = await geminiCompletion(messages, signal, (chunk) => {
+        fallbackStreamed = true;
+        onChunk(chunk);
+      });
+      return { ...result, model: geminiModel() };
     } catch (fallbackErr) {
       logger.warn("llm_fallback_failed", { reason: (fallbackErr as Error).message?.slice(0, 200) });
-      throw err;
+      // Once Gemini produced output, its error describes what the user saw; before that, Claude's does.
+      throw fallbackStreamed ? fallbackErr : err;
     }
   }
 }

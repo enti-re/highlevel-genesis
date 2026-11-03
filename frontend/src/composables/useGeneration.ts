@@ -113,7 +113,7 @@ export function useGeneration(projectId: string, project: Ref<Project | null>) {
         // The unlock may have reached us before the stream error did; then there is nothing to wait for.
         if (!serverBusy.value) {
           phase.value = 'idle'
-          toast.success('Generation saved')
+          toast.info('Generation finished', { description: 'See the chat for the result.' })
         } else toast.warning('Connection lost', { description: 'The server is still finishing. Your files will appear when saved.' })
       } else {
         phase.value = 'idle'
@@ -132,7 +132,7 @@ export function useGeneration(projectId: string, project: Ref<Project | null>) {
     if (phase.value === 'recovering') {
       phase.value = 'idle'
       resetBuffers()
-      toast.success('Generation saved')
+      toast.info('Generation finished', { description: 'See the chat for the result.' })
     }
   })
 

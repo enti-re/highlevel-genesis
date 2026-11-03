@@ -156,7 +156,7 @@ firebase use --add                                   # select your real project 
 cp .env.example functions/.env                       # fill HL_CLIENT_ID, API_BASE_URL, APP_URL (MOCK_* = false)
 firebase functions:secrets:set ANTHROPIC_API_KEY
 firebase functions:secrets:set HL_CLIENT_SECRET
-firebase functions:secrets:set GEMINI_API_KEY   # only used with LLM_PROVIDER=gemini; any placeholder otherwise
+firebase functions:secrets:set GEMINI_API_KEY   # fallback when Claude is unavailable (a placeholder disables the fallback)
 cp .env.example frontend/.env                        # fill VITE_FIREBASE_* and VITE_API_BASE_URL
 firebase deploy --only firestore,functions,hosting   # predeploy hooks build both packages
 ```

@@ -63,7 +63,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 watch(
-  () => [props.messages.length, props.draftText.length, props.streamingPaths.length],
+  () => [props.messages.at(-1)?.id, props.draftText.length, props.streamingPaths.length],
   async () => {
     await nextTick()
     const el = viewport.value?.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null

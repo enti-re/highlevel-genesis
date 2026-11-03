@@ -25,7 +25,11 @@ const pendingRestore = ref<Snapshot | null>(null)
 
 // "Current" means identical to the live files, not just newest: after a saved hand edit the newest
 // snapshot differs and must stay restorable.
-const isCurrent = (s: Snapshot) => s.files.length === props.fileMap.size && s.files.every((f) => props.fileMap.get(f.path) === f.content)
+const matchesLiveFiles = (snapshot: Snapshot) =>
+  snapshot.files.length === props.fileMap.size && snapshot.files.every((file) => props.fileMap.get(file.path) === file.content)
+// After a restore, two snapshots match the live files; only the newest is labelled Current.
+const currentSnapshotId = computed(() => props.snapshots.find(matchesLiveFiles)?.id ?? null)
+const isCurrent = (snapshot: Snapshot) => snapshot.id === currentSnapshotId.value
 const restoring = ref(false)
 const diff = ref<{ path: string; before: string; after: string; label: string } | null>(null)
 
@@ -101,7 +105,7 @@ const language = (path: string) =>
               <p v-if="s.prompt" class="mt-1 line-clamp-2 text-xs italic text-muted-foreground">"{{ s.prompt }}"</p>
             </div>
             <Button
-              v-if="!isCurrent(s)"
+              v-if="!matchesLiveFiles(s)"
               size="xs"
               variant="outline"
               :disabled="!!blockedReason"

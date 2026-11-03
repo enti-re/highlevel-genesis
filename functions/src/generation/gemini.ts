@@ -21,7 +21,7 @@ export async function geminiCompletion(
 ): Promise<LlmResult> {
   const apiKey = GEMINI_API_KEY.value();
   if (!apiKey) throw new LlmHttpError(401, "GEMINI_API_KEY secret is not set.");
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,

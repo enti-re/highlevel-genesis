@@ -21,10 +21,13 @@ const reloadKey = ref(0)
 const { calls, runtimeErrors, clear } = useHlBridge(iframe)
 
 // Closes the loop by hand: the user sends the runtime error back through the normal generation path.
+// Keeps the prompt well under the server's 4,000-character limit even with long stack-like errors.
+const MAX_ERROR_CHARS = 400
+
 function fixWithAi() {
   const errors = [...new Set(runtimeErrors.value)]
     .slice(-3)
-    .map((e) => `- ${e}`)
+    .map((message) => `- ${message.slice(0, MAX_ERROR_CHARS)}`)
     .join('\n')
   emit('fix', `The preview throws this runtime error:\n${errors}\nFind the cause and fix it, changing as little code as possible.`)
 }
