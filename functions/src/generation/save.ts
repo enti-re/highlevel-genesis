@@ -106,9 +106,21 @@ export async function saveGeneration(input: SaveInput): Promise<void> {
       files: changed,
       ...metrics,
       usage,
+      model: llmResult?.model ?? null,
       confidence: confidence.score,
     });
-    batch.update(genRef, { status, finishedAt: now(), error: failure, snapshotId, usage, warnings, metrics, confidence });
+    batch.update(genRef, {
+      status,
+      finishedAt: now(),
+      error: failure,
+      snapshotId,
+      usage,
+      warnings,
+      metrics,
+      confidence,
+      // A provider fallback answered: record the model that actually ran, for cost and eval reports.
+      ...(llmResult?.model ? { model: llmResult.model } : {}),
+    });
     batch.update(projectRef, { activeGeneration: null, updatedAt: now() });
     await batch.commit();
 

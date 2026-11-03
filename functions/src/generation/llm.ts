@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ANTHROPIC_API_KEY, LLM_MODEL, LLM_PROVIDER, isMockLlm } from "../config";
+import { logger } from "firebase-functions";
+import { ANTHROPIC_API_KEY, GEMINI_API_KEY, LLM_MODEL, LLM_PROVIDER, isMockLlm } from "../config";
 import { SYSTEM_PROMPT } from "./prompt";
 import { mockCompletion } from "./mockLlm";
 import { geminiCompletion } from "./gemini";
@@ -12,6 +13,8 @@ export type LlmChunk =
 export interface LlmResult {
   stopReason: string | null;
   usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number } | null;
+  /** Set when a different model than activeModel() answered (provider fallback). */
+  model?: string;
 }
 
 let client: Anthropic | null = null;
@@ -20,9 +23,11 @@ const getClient = () => (client ??= new Anthropic({ apiKey: ANTHROPIC_API_KEY.va
 /** Recorded on each generation for cost and eval reports. */
 export function activeModel(): string {
   if (isMockLlm()) return "mock";
-  if (LLM_PROVIDER.value() === "gemini") return process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  if (LLM_PROVIDER.value() === "gemini") return geminiModel();
   return LLM_MODEL.value();
 }
+
+const geminiModel = () => process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 /** SDK retries happen before the first token only, so a retry never duplicates output the user has seen. */
 export async function streamCompletion(
@@ -33,6 +38,40 @@ export async function streamCompletion(
   if (isMockLlm()) return mockCompletion(messages, signal, onChunk);
   if (LLM_PROVIDER.value() === "gemini") return geminiCompletion(messages, signal, onChunk);
 
+  let streamed = false;
+  try {
+    return await claudeCompletion(messages, signal, (chunk) => {
+      streamed = true;
+      onChunk(chunk);
+    });
+  } catch (err) {
+    // Capacity/billing failures before any output switch to Gemini; after output starts, switching
+    // would mix two answers, so the error stands.
+    if (streamed || signal.aborted || !shouldFallBack(err) || !GEMINI_API_KEY.value()) throw err;
+    logger.warn("llm_fallback", { from: LLM_MODEL.value(), to: geminiModel(), reason: (err as Error).message?.slice(0, 200) });
+    try {
+      return { ...(await geminiCompletion(messages, signal, onChunk)), model: geminiModel() };
+    } catch (fallbackErr) {
+      logger.warn("llm_fallback_failed", { reason: (fallbackErr as Error).message?.slice(0, 200) });
+      throw err;
+    }
+  }
+}
+
+/** Claude unavailable to us (rate limit, overload, no credits, missing/invalid key), not a problem with the request. */
+export function shouldFallBack(err: unknown): boolean {
+  if (err instanceof Anthropic.APIConnectionError) return true;
+  if (!(err instanceof Anthropic.APIError)) return false;
+  const status = err.status ?? 0;
+  if (status === 429 || status >= 500 || status === 401 || status === 403) return true;
+  return status === 400 && /credit balance/i.test(err.message);
+}
+
+async function claudeCompletion(
+  messages: Anthropic.MessageParam[],
+  signal: AbortSignal,
+  onChunk: (chunk: LlmChunk) => void,
+): Promise<LlmResult> {
   const stream = getClient().beta.messages.stream(
     {
       model: LLM_MODEL.value(),

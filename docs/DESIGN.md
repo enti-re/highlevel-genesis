@@ -223,7 +223,7 @@ model ─▶ <edit app.js> search/replace × n ─▶ apply in order ─┬─ a
 **Model settings.**
 - Claude Opus 5.5 at `effort: medium`, adaptive thinking, `max_tokens` 32k, server-side refusal fallback. If a fallback re-runs the request, a `reset` event clears the partial output.
 - The model is configurable (`LLM_MODEL`). Sonnet 5.5 roughly halves cost.
-- `LLM_PROVIDER=gemini` is an explicit opt-in (key in Secret Manager) for testing without Claude credits; Claude is the default.
+- Claude is the default. Gemini is the capacity fallback (above) and can be forced with `LLM_PROVIDER=gemini` for testing; its key is in Secret Manager.
 
 ---
 
@@ -274,6 +274,7 @@ The UI keys its behaviour off `code` and `retryable` (a Retry button, a reconnec
 2. **Server outlives the client.** A closed tab doesn't cancel a paid generation. The UI enters `recovering` and resolves from Firestore when the lock clears. If the instance itself dies, the lock is never cleared, so server, rules and UI all treat a lock older than 10 minutes as stale (`lib/lock.ts` mirrors `STALE_LOCK_MS`); a scheduled sweeper that marks orphaned generations `failed` is the production follow-up.
 3. **Retry only where it's safe.**
    - **LLM:** the Anthropic SDK retries twice with exponential backoff and jitter, before the first token only, so output is never duplicated. A refusal falls back to another model server-side (`reset` event).
+   - **Provider fallback:** if Claude is unavailable to us before any output (429, 5xx/529 overload, out of credits, missing/invalid key, connection error), the same request runs on Gemini (`llm_fallback` log; the generation records the model that answered). Bad requests and mid-stream failures never switch, so two answers are never mixed.
    - **HighLevel:** 429/5xx/timeouts retry twice with exponential backoff and **full jitter** (random wait in `[0, base·2^n]`), honouring `Retry-After` (`hl/retry.ts`). Only GETs and search POSTs retry: repeating `contacts.create` or `sendMessage` after a timeout could duplicate the contact or the SMS, so writes fail fast until calls carry idempotency keys. Calendar fan-out is capped at 3 concurrent requests (HighLevel's burst limit is per location).
 4. **Best-effort enrichments never block.** The external context and location name lookups are time-boxed and optional.
 5. **No queue, so no DLQ yet.** A generation runs inside its request. A failed run is still durable: the generation doc keeps `status`, error `code`, usage and the prompt, and partial files are saved, so failures can be queried and replayed by hand. With a queue (Cloud Tasks) the production shape is: retries with backoff → dead-letter topic → alert + a replay tool.

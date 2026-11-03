@@ -160,7 +160,7 @@ export async function generateHandler(req: Request, res: Response) {
       );
       const repaired = repairParser.finish();
       onlyFiles(repaired.events);
-      llmResult = { stopReason: llmResult!.stopReason, usage: addUsage(llmResult!.usage, repair.usage) };
+      llmResult = { ...llmResult!, usage: addUsage(llmResult!.usage, repair.usage) };
       return repaired.result.completed;
     };
 
