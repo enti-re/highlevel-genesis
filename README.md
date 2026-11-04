@@ -8,7 +8,9 @@ Describe an app in chat. Genesis streams the code into an editor in real time an
 |---|---|
 | Live app | `https://genesis-app-builder.web.app/dashboard` |
 | Functions base URL | `https://us-central1-genesis-app-builder.cloudfunctions.net/api` |
-| Loom walkthrough | *(link added after recording)* |
+| Loom, part 1: walkthrough | [Building an AI Dashboard on HighLevel CRM](https://www.loom.com/share/723861cf5cf2428f9d63c762e3dd039f) |
+| Loom, part 2: architecture decision | [Making AI-Generated Apps Safe with Allow Lists](https://www.loom.com/share/c1b9841e5566410bbc0fdf3d64efa669) |
+| Design doc | [High-level design (Google Doc)](https://docs.google.com/document/d/1Opu3Y1ezBKBC-KUPmffIMlcY8o-gWf1GznMM0J4ZpVs/edit) · full version in [`docs/DESIGN.md`](docs/DESIGN.md) |
 
 ---
 
