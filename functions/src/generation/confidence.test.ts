@@ -49,3 +49,25 @@ describe("helpers", () => {
     expect(missingLocalRefs(files)).toEqual(["b.js"]);
   });
 });
+
+describe("useHl usage", () => {
+  it("flags a useHl result kept as an object (template would stay stuck on loading)", () => {
+    const files = new Map(GOOD);
+    files.set(
+      "app.js",
+      'const contactsState = genesis.useHl(() => hl.contacts.list()); const t = `<p v-if="contactsState.loading">...</p>`',
+    );
+    const result = scoreConfidence({ ...base, files });
+    expect(result.score).toBe(70);
+    expect(result.reasons.join(" ")).toMatch(/stuck on loading/);
+  });
+
+  it("accepts the object form when it is read with .value (the starter-kit example does this)", () => {
+    const files = new Map(GOOD);
+    files.set(
+      "app.js",
+      'const contacts = genesis.useHl(() => hl.contacts.list()); const t = `<p v-if="contacts.loading.value">{{ contacts.data.value }}</p>`',
+    );
+    expect(scoreConfidence({ ...base, files }).score).toBe(100);
+  });
+});

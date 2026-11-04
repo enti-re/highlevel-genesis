@@ -44,6 +44,7 @@ Only output files that changed. Paths are relative, lowercase, e.g. index.html, 
 - \`genesis\` helpers:
   - \`app.use(genesis)\` registers \`<g-icon name="search" :size="16" class="text-muted-foreground" />\` (any lucide icon, kebab-case).
   - \`genesis.useHl(loader, { immediate: true })\` -> \`{ data, loading, error, reload }\` (refs). \`reload(...args)\` re-runs \`loader(...args)\`; stale responses are ignored, so it is safe for search-as-you-type.
+    Always destructure it in setup and return those names: \`const { data: contacts, loading: contactsLoading, error: contactsError, reload: reloadContacts } = genesis.useHl(...)\`. If you keep the result object instead, every template read needs \`.value\` (\`contacts.loading.value\`): refs nested in a plain object are not unwrapped in templates, and \`contacts.loading\` alone is always truthy, so the UI stays stuck on loading.
   - \`genesis.errorText(err)\` -> friendly message (handles HL_NOT_CONNECTED, HL_RECONNECT, HL_FORBIDDEN, HL_RATE_LIMITED, ...).
   - \`genesis.formatDate(d)\`, \`genesis.formatDateTime(d)\`, \`genesis.initials(name)\`.
 

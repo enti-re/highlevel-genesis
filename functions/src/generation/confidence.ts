@@ -37,9 +37,21 @@ const PENALTY = {
   failedEdit: 25,
   repairedEdit: 10,
   noErrorHandling: 10,
+  nestedUseHl: 30,
   perWarning: 10,
   maxWarnings: 20,
 };
+
+const USE_HL_OBJECT = /\b(?:const|let|var)\s+(\w+)\s*=\s*genesis\.useHl\s*\(/g;
+
+/** `state.loading` / `state.data` / `state.error` reads (without `.value`) of an object returned by genesis.useHl. */
+export function unwrappedUseHlReads(code: string): string[] {
+  const reads = new Set<string>();
+  for (const [, name] of code.matchAll(USE_HL_OBJECT)) {
+    for (const [read] of code.matchAll(new RegExp(`\\b${name}\\.(?:loading|data|error)\\b(?!\\s*\\.\\s*value)`, "g"))) reads.add(read);
+  }
+  return [...reads];
+}
 
 const KNOWN_OPS = new Set([...OPERATION_NAMES, "contacts.listAll"]);
 
@@ -94,6 +106,13 @@ export function scoreConfidence(input: ConfidenceInput): Confidence {
   if (FORBIDDEN_API.test(code)) penalize(PENALTY.blockedApi, "uses browser APIs the preview blocks (fetch/storage/parent)");
   if (/\bhl\./.test(code) && !/genesis\.useHl|errorText|catch\s*\(/.test(code))
     penalize(PENALTY.noErrorHandling, "HighLevel calls without loading/error handling");
+  // `const state = genesis.useHl(...)` read as `state.loading` (no `.value`) is a ref object, always truthy: the UI stays on loading.
+  if (unwrappedUseHlReads(code).length) {
+    penalize(
+      PENALTY.nestedUseHl,
+      `useHl result read without .value (${unwrappedUseHlReads(code).join(", ")}), so the UI stays stuck on loading`,
+    );
+  }
 
   if (input.edits.failed) penalize(PENALTY.failedEdit, `${input.edits.failed} edit(s) could not be applied`);
   if (input.edits.repaired) penalize(PENALTY.repairedEdit, "an edit needed a full-file repair");
