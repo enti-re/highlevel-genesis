@@ -4,19 +4,19 @@ Describe an app in chat. Genesis streams the code into an editor in real time an
 
 **Stack:** Vue 3 + TypeScript + shadcn-vue · Firebase Auth, Firestore, Cloud Functions (2nd gen), Hosting · Claude (`@anthropic-ai/sdk`, streaming)
 
-| | |
-|---|---|
-| Live app | `https://genesis-app-builder.web.app/dashboard` |
-| Functions base URL | `https://us-central1-genesis-app-builder.cloudfunctions.net/api` |
-| Loom, part 1: walkthrough | [Building an AI Dashboard on HighLevel CRM](https://www.loom.com/share/723861cf5cf2428f9d63c762e3dd039f) |
-| Loom, part 2: architecture decision | [Making AI-Generated Apps Safe with Allow Lists](https://www.loom.com/share/c1b9841e5566410bbc0fdf3d64efa669) |
-| Design doc | [High-level design (Google Doc)](https://docs.google.com/document/d/1Opu3Y1ezBKBC-KUPmffIMlcY8o-gWf1GznMM0J4ZpVs/edit) · full version in [`docs/DESIGN.md`](docs/DESIGN.md) |
+|                                     |                                                                                                                                                                             |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live app                            | `https://genesis-app-builder.web.app/dashboard`                                                                                                                             |
+| Functions base URL                  | `https://us-central1-genesis-app-builder.cloudfunctions.net/api`                                                                                                            |
+| Loom, part 1: walkthrough           | [Building an AI Dashboard on HighLevel CRM](https://www.loom.com/share/723861cf5cf2428f9d63c762e3dd039f)                                                                    |
+| Loom, part 2: architecture decision | [Making AI-Generated Apps Safe with Allow Lists](https://www.loom.com/share/c1b9841e5566410bbc0fdf3d64efa669)                                                               |
+| Design doc                          | [High-level design (Google Doc)](https://docs.google.com/document/d/1Opu3Y1ezBKBC-KUPmffIMlcY8o-gWf1GznMM0J4ZpVs/edit) · full version in [`docs/DESIGN.md`](docs/DESIGN.md) |
 
 ---
 
 ## How it works
 
-> Full system design: **[docs/DESIGN.md](docs/DESIGN.md)**. Its first section, *At a glance*, is a one-minute summary (diagram, five key decisions, evidence); §16 lists known limitations.
+> Full system design: **[docs/DESIGN.md](docs/DESIGN.md)**. Its first section, _At a glance_, is a one-minute summary (diagram, five key decisions, evidence); §16 lists known limitations.
 
 ```
  Browser (Vue 3 + shadcn-vue)
@@ -47,47 +47,47 @@ Describe an app in chat. Genesis streams the code into an editor in real time an
 
 ### SSE event protocol (`POST /generate`)
 
-| Event | Payload | Meaning |
-|---|---|---|
-| `start` | `{ generationId }` | Lock acquired, generation running |
-| `text` | `{ delta }` | Assistant chat text (outside file tags) |
-| `file_start` | `{ path }` | A file begins |
-| `token` | `{ path, delta }` | File content as it streams |
-| `file_end` | `{ path }` | File closed (complete) |
-| `edit_start` | `{ path }` | Model is patching a file with search/replace blocks (no tokens streamed) |
-| `edit_end` | `{ path }` | Edit block closed; applied atomically per file after the stream |
-| `file_delete` | `{ path }` | Model asked to delete a file |
-| `warning` | `{ message }` | Non-fatal issue (e.g. length limit hit) |
-| `reset` | `{}` | Server-side model fallback re-ran the request: discard partial output |
-| `done` | `{ status, snapshotId, files, deleted, warnings }` | Saved |
-| `error` | `{ code, message, retryable, status, savedFiles }` | Failed or cancelled; completed files were still saved |
+| Event         | Payload                                            | Meaning                                                                  |
+| ------------- | -------------------------------------------------- | ------------------------------------------------------------------------ |
+| `start`       | `{ generationId }`                                 | Lock acquired, generation running                                        |
+| `text`        | `{ delta }`                                        | Assistant chat text (outside file tags)                                  |
+| `file_start`  | `{ path }`                                         | A file begins                                                            |
+| `token`       | `{ path, delta }`                                  | File content as it streams                                               |
+| `file_end`    | `{ path }`                                         | File closed (complete)                                                   |
+| `edit_start`  | `{ path }`                                         | Model is patching a file with search/replace blocks (no tokens streamed) |
+| `edit_end`    | `{ path }`                                         | Edit block closed; applied atomically per file after the stream          |
+| `file_delete` | `{ path }`                                         | Model asked to delete a file                                             |
+| `warning`     | `{ message }`                                      | Non-fatal issue (e.g. length limit hit)                                  |
+| `reset`       | `{}`                                               | Server-side model fallback re-ran the request: discard partial output    |
+| `done`        | `{ status, snapshotId, files, deleted, warnings }` | Saved                                                                    |
+| `error`       | `{ code, message, retryable, status, savedFiles }` | Failed or cancelled; completed files were still saved                    |
 
 Comment heartbeats (`: ping`) every 10 s keep proxies from closing the stream while the model is thinking.
 
 ### Error handling
 
-| Failure | What the user sees | What happens to the data |
-|---|---|---|
-| Stream drops mid-generation (LLM side) | "Lost connection to the AI… finished files were kept" | Completed files saved, snapshot marked **partial** |
-| Malformed output (bad path, unclosed tag, empty file) | Per-file warning | That file is skipped and the rest are kept. 0 files → no snapshot |
-| Browser disconnects | "Connection lost, server still finishing" | Server **keeps going and saves**. UI recovers from Firestore when the lock clears |
-| Cancel | "Generation cancelled" | Abort via a Firestore flag. Completed files kept |
-| LLM 429 / 5xx | "AI busy, retry" + Retry button | SDK retries only **before** the first token (no duplicated output) |
-| Double submit / second tab | 409 `GENERATION_IN_PROGRESS` | Transactional per-project lock (auto-expires after 10 min) |
-| HighLevel token expired | Nothing | Refreshed under a Firestore **lease**: HL refresh tokens rotate, so concurrent refreshes would log the user out |
-| HighLevel refresh revoked | "Reconnect HighLevel" | Connection marked `expired` |
-| HighLevel 401 mid-call | Nothing | Force one refresh, retry once |
-| HighLevel 403 / 429 / 5xx / timeout | Generated app's own error state | Typed `HLError` (`code`, `retryable`). The prompt *requires* loading/error/empty states |
-| Manual edit during generation | Editor locked | Firestore rules reject file writes while the project is locked |
-| Unsaved edits + new generation | Send blocked until save/discard | Saved hand edits are snapshotted as "Manual edits" before an AI overwrite |
-| Runtime error in generated app | Banner with the error | Reported from the iframe via `postMessage` |
-| OAuth CSRF / replay | Error toast | Single-use `state` doc bound to the user, 10-min TTL |
+| Failure                                               | What the user sees                                    | What happens to the data                                                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Stream drops mid-generation (LLM side)                | "Lost connection to the AI… finished files were kept" | Completed files saved, snapshot marked **partial**                                                              |
+| Malformed output (bad path, unclosed tag, empty file) | Per-file warning                                      | That file is skipped and the rest are kept. 0 files → no snapshot                                               |
+| Browser disconnects                                   | "Connection lost, server still finishing"             | Server **keeps going and saves**. UI recovers from Firestore when the lock clears                               |
+| Cancel                                                | "Generation cancelled"                                | Abort via a Firestore flag. Completed files kept                                                                |
+| LLM 429 / 5xx                                         | "AI busy, retry" + Retry button                       | SDK retries only **before** the first token (no duplicated output)                                              |
+| Double submit / second tab                            | 409 `GENERATION_IN_PROGRESS`                          | Transactional per-project lock (auto-expires after 10 min)                                                      |
+| HighLevel token expired                               | Nothing                                               | Refreshed under a Firestore **lease**: HL refresh tokens rotate, so concurrent refreshes would log the user out |
+| HighLevel refresh revoked                             | "Reconnect HighLevel"                                 | Connection marked `expired`                                                                                     |
+| HighLevel 401 mid-call                                | Nothing                                               | Force one refresh, retry once                                                                                   |
+| HighLevel 403 / 429 / 5xx / timeout                   | Generated app's own error state                       | Typed `HLError` (`code`, `retryable`). The prompt _requires_ loading/error/empty states                         |
+| Manual edit during generation                         | Editor locked                                         | Firestore rules reject file writes while the project is locked                                                  |
+| Unsaved edits + new generation                        | Send blocked until save/discard                       | Saved hand edits are snapshotted as "Manual edits" before an AI overwrite                                       |
+| Runtime error in generated app                        | Banner with the error                                 | Reported from the iframe via `postMessage`                                                                      |
+| OAuth CSRF / replay                                   | Error toast                                           | Single-use `state` doc bound to the user, 10-min TTL                                                            |
 
 ---
 
 ## HighLevel setup
 
-1. Create a developer account at [developers.gohighlevel.com](https://developers.gohighlevel.com), then create a **Marketplace app** (distribution: *Sub-account*).
+1. Create a developer account at [developers.gohighlevel.com](https://developers.gohighlevel.com), then create a **Marketplace app** (distribution: _Sub-account_).
 2. **Scopes:** `contacts.readonly contacts.write conversations.readonly conversations.write conversations/message.readonly conversations/message.write calendars.readonly calendars/events.readonly locations.readonly`
 3. **Redirect URL:** `https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/api/oauth/callback` (must equal `${API_BASE_URL}/oauth/callback` exactly).
 4. Copy the **Client ID** into `functions/.env` and the **Client secret** into Secret Manager (see Deployment).
@@ -133,7 +133,7 @@ npm run format:check --prefix functions && npm run format:check --prefix fronten
 ## Architecture decisions
 
 1. **SSE over WebSockets.** The stream is one-way and Cloud Functions can't hold WebSockets. The client uses `fetch` + a stream reader rather than `EventSource`, because `EventSource` can't POST or send an `Authorization` header.
-2. **Tagged output (`<file>`, `<edit>` search/replace, `<delete>`), not JSON or tool calls.** Tags stream naturally into the editor and parse incrementally; edits keep small changes small (output tokens are the main cost). A broken stream still yields every *completed* file, whereas half-streamed JSON is unusable and one bad escape invalidates everything.
+2. **Tagged output (`<file>`, `<edit>` search/replace, `<delete>`), not JSON or tool calls.** Tags stream naturally into the editor and parse incrementally; edits keep small changes small (output tokens are the main cost). A broken stream still yields every _completed_ file, whereas half-streamed JSON is unusable and one bad escape invalidates everything.
 3. **A postMessage bridge instead of tokens in the iframe.** The sandbox has no `allow-same-origin`, so generated code can't reach the user's session. The parent proxies calls with an httpOnly session cookie, and HighLevel tokens never leave the server.
 4. **A whitelisted, normalized `hl` client instead of raw HighLevel docs in the prompt.** The model codes against 11 small, stable shapes (`spec.ts`). That bounds the context, stops it inventing endpoints, and absorbs API quirks server-side (e.g. nested `messages.messages`, events requiring a `calendarId` → fan out over calendars).
 5. **The server is the source of truth, and each generation saves atomically.** Tokens are paid for, so a closed tab still produces a saved result; Firestore listeners, not the stream, drive saved state, which is what makes recovery work. Files, snapshot, messages, generation record and unlock commit in one batch, so a snapshot never disagrees with the files.
