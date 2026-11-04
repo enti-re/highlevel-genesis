@@ -9,7 +9,8 @@ import { STALE_LOCK_MS, db, getOwnedProject, now } from "../lib/store";
 import { loadGenerationContext } from "../generation/context";
 import { FileStreamParser, ParseResult, ParserEvent } from "../generation/parser";
 import { PROMPT_VERSION } from "../generation/prompt";
-import { activeModel, streamCompletion, LlmResult } from "../generation/llm";
+import { activeModel, streamCompletion, type LlmChunk, LlmResult } from "../generation/llm";
+import { cascadeEnabled, chooseTier, escalationReason, modelFor } from "../generation/cascade";
 import { addUsage, classifyError, type GenerationFailure } from "../generation/llmErrors";
 import { repairFailedEdits, repairSyntaxErrors, type RequestRepair } from "../generation/repair";
 import { resolveEdits, type ResolvedEdits } from "../generation/resolve";
@@ -66,8 +67,7 @@ export async function generateHandler(req: Request, res: Response) {
     if (omittedFiles.length) {
       sse.send("warning", { message: `Large project: ${omittedFiles.length} file(s) were not sent to the AI.` });
     }
-
-    llmResult = await streamCompletion(messages, abort.signal, (chunk) => {
+    const onChunk = (chunk: LlmChunk) => {
       if (chunk.type === "restart") {
         // Server-side fallback re-ran the request on another model: discard partial output.
         parser = new FileStreamParser();
@@ -78,53 +78,73 @@ export async function generateHandler(req: Request, res: Response) {
       firstTokenAt ??= Date.now();
       rawOutput += chunk.text;
       forward(parser.feed(chunk.text));
-    });
-
-    if (llmResult.stopReason === "refusal") {
-      failure = { code: "LLM_REFUSED", message: "The AI declined this request. Try rephrasing it.", retryable: false };
-    } else if (llmResult.stopReason === "max_tokens") {
-      sse.send("warning", { message: "The response hit the length limit; the last file may be incomplete." });
-    }
-
-    const finished = parser.finish();
-    forward(finished.events);
-    parsed = finished.result;
-    resolved = resolveEdits(existing, parsed);
-
-    // Continues the same conversation, so it reads the whole context from the prompt cache.
-    const requestRepair: RequestRepair = async (paths, problem) => {
-      let repairParser = new FileStreamParser();
-      const onlyFiles = (events: ParserEvent[]) => forward(events.filter((event) => event.type !== "text"));
-      const repair = await streamCompletion(
-        [
-          ...messages,
-          { role: "assistant", content: rawOutput },
-          {
-            role: "user",
-            content: `${problem}\n\nOutput the COMPLETE corrected content of ${paths.join(", ")} using <file> tags only. No other text.`,
-          },
-        ],
-        abort.signal,
-        (chunk) => {
-          if (chunk.type === "restart")
-            repairParser = new FileStreamParser(); // fallback model re-ran: drop the partial answer
-          else onlyFiles(repairParser.feed(chunk.text));
-        },
-      );
-      const repaired = repairParser.finish();
-      onlyFiles(repaired.events);
-      llmResult = { ...llmResult!, usage: addUsage(llmResult!.usage, repair.usage), model: llmResult!.model ?? repair.model };
-      return repaired.result.completed;
     };
 
-    if (!failure) {
-      const repairContext = {
-        requestRepair,
-        warn: (message: string) => sse.send("warning", { message }),
-        logFields: { projectId, generationId: genRef.id },
+    // Model cascade: small changes try the fast model; a result that fails the checks is redone once by the best model.
+    let model = modelFor(chooseTier({ hasFiles: existing.size > 0, prompt, enabled: cascadeEnabled() }));
+    for (;;) {
+      const attempt = await streamCompletion(messages, abort.signal, onChunk, model);
+      llmResult = llmResult ? { ...attempt, usage: addUsage(llmResult.usage, attempt.usage) } : attempt;
+
+      if (attempt.stopReason === "refusal") {
+        failure = { code: "LLM_REFUSED", message: "The AI declined this request. Try rephrasing it.", retryable: false };
+      } else if (attempt.stopReason === "max_tokens") {
+        sse.send("warning", { message: "The response hit the length limit; the last file may be incomplete." });
+      }
+
+      const finished = parser.finish();
+      forward(finished.events);
+      parsed = finished.result;
+      resolved = resolveEdits(existing, parsed);
+
+      // Continues the same conversation on the same model, so it reads the whole context from the prompt cache.
+      const repairModel = model;
+      const requestRepair: RequestRepair = async (paths, problem) => {
+        let repairParser = new FileStreamParser();
+        const onlyFiles = (events: ParserEvent[]) => forward(events.filter((event) => event.type !== "text"));
+        const repair = await streamCompletion(
+          [
+            ...messages,
+            { role: "assistant", content: rawOutput },
+            {
+              role: "user",
+              content: `${problem}\n\nOutput the COMPLETE corrected content of ${paths.join(", ")} using <file> tags only. No other text.`,
+            },
+          ],
+          abort.signal,
+          (chunk) => {
+            if (chunk.type === "restart")
+              repairParser = new FileStreamParser(); // fallback model re-ran: drop the partial answer
+            else onlyFiles(repairParser.feed(chunk.text));
+          },
+          repairModel,
+        );
+        const repaired = repairParser.finish();
+        onlyFiles(repaired.events);
+        llmResult = { ...llmResult!, usage: addUsage(llmResult!.usage, repair.usage) };
+        return repaired.result.completed;
       };
-      resolved = await repairFailedEdits(resolved, omittedFiles, repairContext);
-      await repairSyntaxErrors(resolved, repairContext);
+
+      if (!failure) {
+        const repairContext = {
+          requestRepair,
+          warn: (message: string) => sse.send("warning", { message }),
+          logFields: { projectId, generationId: genRef.id },
+        };
+        resolved = await repairFailedEdits(resolved, omittedFiles, repairContext);
+        await repairSyntaxErrors(resolved, repairContext);
+      }
+
+      // Escalate only a fast-model answer (not a provider fallback) that fails the checks, and only once.
+      const reason =
+        attempt.model === modelFor("fast") && model !== modelFor("best") ? escalationReason({ existing, parsed, resolved, failure }) : null;
+      if (!reason) break;
+      logger.info("cascade_escalate", { projectId, generationId: genRef.id, from: model, to: modelFor("best"), reason });
+      model = modelFor("best");
+      parser = new FileStreamParser();
+      rawOutput = "";
+      sse.send("reset", {});
+      sse.send("warning", { message: "Improving the result with a stronger model…" });
     }
   } catch (err) {
     failure = classifyError(err, abort.signal);

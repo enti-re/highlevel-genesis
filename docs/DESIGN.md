@@ -245,6 +245,7 @@ model ─▶ <edit app.js> search/replace × n ─▶ apply in order ─┬─ a
 **Model settings.**
 - Claude Opus 5.5 at `effort: medium`, adaptive thinking, `max_tokens` 32k, server-side refusal fallback. If a fallback re-runs the request, a `reset` event clears the partial output.
 - The model is configurable (`LLM_MODEL`). Sonnet 5.5 roughly halves cost.
+- **Model cascade** (`cascade.ts`, `MODEL_CASCADE=on`): new apps and long requests use Opus. Short changes to an existing app try `LLM_FAST_MODEL` (Sonnet) first; if the result has unapplied edits, a cut-off file, or confidence below 80, it is redone once on Opus (`reset` event + "Improving the result…"). Escalations are logged (`cascade_escalate`) and each generation records the model that answered.
 - Claude is the default. Gemini is the capacity fallback (above) and can be forced with `LLM_PROVIDER=gemini` for testing; its key is in Secret Manager.
 
 ---
@@ -425,7 +426,7 @@ Verified in the browser: an injected inline script, a script from an unknown dom
 3. KMS envelope encryption for HighLevel tokens.
 4. Webhooks: HighLevel events (e.g. `ContactCreate`) → `/hl/webhook` (signature-verified, routed by locationId) → Firestore → parent page → `hl.on(event, cb)` in running previews.
 6. **AI roadmap:**
-   - **Model routing:** small edits to a faster, cheaper model; new apps and big changes to Opus. Thresholds set by the eval suite.
+   - **Model routing:** a first cascade is in (§5: fast model first for small changes, escalate on failed checks). Next: tune the thresholds and escalation rate with the eval suite.
    - **Online feedback loop:** treat a retry or restore right after a generation, or quick hand edits, as implicit failure signals; review them and turn them into eval cases.
    - **LLM-as-judge:** a rubric-graded check that the app matches the request and looks right, next to today's mechanical checks.
    - **Budgets:** per-user and global daily token/$ limits (today: per-generation caps, rate limits, and a provider spend limit).

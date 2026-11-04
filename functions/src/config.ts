@@ -10,6 +10,10 @@ export const HL_CLIENT_ID = defineString("HL_CLIENT_ID");
 export const API_BASE_URL = defineString("API_BASE_URL");
 export const APP_URL = defineString("APP_URL", { default: "http://localhost:5173" });
 export const LLM_MODEL = defineString("LLM_MODEL", { default: "claude-opus-5-5" });
+/** Cheaper, faster model tried first for small changes; the result escalates to LLM_MODEL if it fails verification. */
+export const LLM_FAST_MODEL = defineString("LLM_FAST_MODEL", { default: "claude-sonnet-5-5" });
+/** "on" routes small changes to LLM_FAST_MODEL first (generation/cascade.ts); "off" always uses LLM_MODEL. */
+export const MODEL_CASCADE = defineString("MODEL_CASCADE", { default: "on" });
 /** "anthropic" (default) or "gemini" (opt-in, for testing without Claude credits). */
 export const LLM_PROVIDER = defineString("LLM_PROVIDER", { default: "anthropic" });
 /** Local development only: canned LLM stream / fake HighLevel data, no external calls. */

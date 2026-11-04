@@ -3,7 +3,7 @@ import { logger } from "firebase-functions";
 import { ANTHROPIC_API_KEY, GEMINI_API_KEY, LLM_MODEL, LLM_PROVIDER, isMockLlm, secretValue } from "../config";
 import { MAX_OUTPUT_TOKENS, SYSTEM_PROMPT } from "./prompt";
 import { mockCompletion } from "./mockLlm";
-import { geminiCompletion } from "./gemini";
+import { geminiCompletion, LlmHttpError } from "./gemini";
 
 export type LlmChunk =
   | { type: "text"; text: string }
@@ -13,12 +13,14 @@ export type LlmChunk =
 export interface LlmResult {
   stopReason: string | null;
   usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number } | null;
-  /** Set when a different model than activeModel() answered (provider fallback). */
+  /** The model that actually answered (differs from the requested one after a provider fallback). */
   model?: string;
 }
 
 const LLM_TIMEOUT_MS = 8 * 60 * 1000;
 const LOG_DETAIL_CHARS = 200;
+const GEMINI_RETRIES = 2;
+const GEMINI_RETRY_BASE_MS = 2000;
 
 let client: Anthropic | null = null;
 // With a fallback configured, retrying Claude for minutes on a rate limit is worse than switching.
@@ -43,13 +45,14 @@ export async function streamCompletion(
   messages: Anthropic.MessageParam[],
   signal: AbortSignal,
   onChunk: (chunk: LlmChunk) => void,
+  model: string = LLM_MODEL.value(),
 ): Promise<LlmResult> {
   if (isMockLlm()) return mockCompletion(messages, signal, onChunk);
   if (LLM_PROVIDER.value() === "gemini") return geminiCompletion(messages, signal, onChunk);
 
   let streamed = false;
   try {
-    return await claudeCompletion(messages, signal, (chunk) => {
+    return await claudeCompletion(model, messages, signal, (chunk) => {
       streamed = true;
       onChunk(chunk);
     });
@@ -57,18 +60,26 @@ export async function streamCompletion(
     // Capacity/billing failures before any output switch to Gemini; after output starts, switching
     // would mix two answers, so the error stands.
     if (streamed || signal.aborted || !shouldFallBack(err) || !secretValue(GEMINI_API_KEY)) throw err;
-    logger.warn("llm_fallback", { from: LLM_MODEL.value(), to: geminiModel(), reason: (err as Error).message?.slice(0, LOG_DETAIL_CHARS) });
+    logger.warn("llm_fallback", { from: model, to: geminiModel(), reason: (err as Error).message?.slice(0, LOG_DETAIL_CHARS) });
     let fallbackStreamed = false;
-    try {
-      const result = await geminiCompletion(messages, signal, (chunk) => {
-        fallbackStreamed = true;
-        onChunk(chunk);
-      });
-      return { ...result, model: geminiModel() };
-    } catch (fallbackErr) {
-      logger.warn("llm_fallback_failed", { reason: (fallbackErr as Error).message?.slice(0, LOG_DETAIL_CHARS) });
-      // Once Gemini produced output, its error describes what the user saw; before that, Claude's does.
-      throw fallbackStreamed ? fallbackErr : err;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const result = await geminiCompletion(messages, signal, (chunk) => {
+          fallbackStreamed = true;
+          onChunk(chunk);
+        });
+        return { ...result, model: geminiModel() };
+      } catch (fallbackErr) {
+        // Gemini overload spikes are short: retry before any output, with a growing pause.
+        const overloaded = fallbackErr instanceof LlmHttpError && fallbackErr.status >= 500;
+        if (overloaded && !fallbackStreamed && !signal.aborted && attempt < GEMINI_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, GEMINI_RETRY_BASE_MS * (attempt + 1)));
+          continue;
+        }
+        logger.warn("llm_fallback_failed", { reason: (fallbackErr as Error).message?.slice(0, LOG_DETAIL_CHARS) });
+        // Once Gemini produced output, its error describes what the user saw; before that, Claude's does.
+        throw fallbackStreamed ? fallbackErr : err;
+      }
     }
   }
 }
@@ -83,13 +94,14 @@ export function shouldFallBack(err: unknown): boolean {
 }
 
 async function claudeCompletion(
+  model: string,
   messages: Anthropic.MessageParam[],
   signal: AbortSignal,
   onChunk: (chunk: LlmChunk) => void,
 ): Promise<LlmResult> {
   const stream = getClient().beta.messages.stream(
     {
-      model: LLM_MODEL.value(),
+      model,
       max_tokens: MAX_OUTPUT_TOKENS,
       output_config: { effort: "medium" },
       // Static system prompt -> cached across generations (cheaper + faster first token).
@@ -111,6 +123,7 @@ async function claudeCompletion(
   // Throws if the stream ended without message_stop, so a cut-off reply is never treated as complete.
   const final = await stream.finalMessage();
   return {
+    model,
     stopReason: final.stop_reason ?? null,
     usage: {
       inputTokens: final.usage.input_tokens,
